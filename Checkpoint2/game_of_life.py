@@ -13,7 +13,14 @@ class GameOfLife:
         elif starting_grid == "blinker":
             self.grid = np.zeros((self.N, self.N), np.uint8)
             self._add_blinker(self.N//2, self.N//2)
-        self.grid_ghost = np.pad()
+        
+        self.grid_ghost = np.pad(self.grid, 1, "wrap")
+
+        self.i = self.j = np.arange(N)
+        self.north = (self.i - 1) % self.N
+        self.west  = (self.j - 1) % self.N
+        self.south = (self.j + 1) % self.N
+        self.east  = (self.i + 1) % self.N
     
     def __str__(self):
         return str(self.grid)
@@ -81,7 +88,55 @@ class GameOfLife:
         self.grid[alive_mask] = 1
         self.grid[~alive_mask] = 0
 
+    def update_whole_grid_3(self):
+        neighbour_sum = self.grid[self.north, self.west] \
+                      + self.grid[self.north,         :] \
+                      + self.grid[self.north, self.east] \
+                      + self.grid[         :, self.west] \
+                      + self.grid[         :, self.east] \
+                      + self.grid[self.south, self.west] \
+                      + self.grid[self.south,         :] \
+                      + self.grid[self.south, self.east]
+        alive_mask = (neighbour_sum == 3) | ((self.grid == 1) & (neighbour_sum == 2))
+        self.grid[alive_mask] = 1
+        self.grid[~alive_mask] = 0
 
+    def update_whole_grid_4(self):
+        neighbour_sum = (
+                        self.grid[ :-2,  :-2]  # North-West 
+                      + self.grid[ :-2, 1:-1]  # North
+                      + self.grid[ :-2, 2:  ]  # North-East
+                      + self.grid[1:-1,  :-2]  # West
+                      + self.grid[1:-1, 2:  ]  # East
+                      + self.grid[2:  ,  :-2]  # South-West
+                      + self.grid[2:  , 1:-1]  # South
+                      + self.grid[2:  , 2:  ]  # South-East
+                      )
+        alive_mask = (neighbour_sum == 3) | ((self.grid[1:-1, 1:-1] == 1) & (neighbour_sum == 2))
+        alive_mask = np.pad(alive_mask, 1, "wrap")
+        self.grid[alive_mask] = 1
+        self.grid[~alive_mask] = 0
+        
+    def update_whole_grid_5(self):
+        neighbour_sum = (
+                        self.grid[ :-2,  :-2]  # North-West 
+                      + self.grid[ :-2, 1:-1]  # North
+                      + self.grid[ :-2, 2:  ]  # North-East
+                      + self.grid[1:-1,  :-2]  # West
+                      + self.grid[1:-1, 2:  ]  # East
+                      + self.grid[2:  ,  :-2]  # South-West
+                      + self.grid[2:  , 1:-1]  # South
+                      + self.grid[2:  , 2:  ]  # South-East
+                      )
+        alive_mask = (neighbour_sum == 3) | ((self.grid[1:-1, 1:-1] == 1) & (neighbour_sum == 2))
+
+        self.grid[1:-1, 1:-1][alive_mask] = 1
+        self.grid[1:-1, 1:-1][~alive_mask] = 0
+
+        self.grid[0, :] = self.grid[-2, :]
+        self.grid[-1, :] = self.grid[1, :]
+        self.grid[:, 0] = self.grid[:, -2]
+        self.grid[:, -1] = self.grid[:, 1]
 
     def update_grid(self):
         new_grid = np.empty((self.N, self.N), np.uint8)
@@ -91,16 +146,24 @@ class GameOfLife:
         self.grid = new_grid
 
     def run(self, niter):
+        self.update_whole_grid_4()
         for i in tqdm(range(niter), desc="Simulating", unit="sweep"):
             self.update_grid()
         for i in tqdm(range(niter), desc="Simulating", unit="sweep"):
             self.update_whole_grid()
         for i in tqdm(range(niter), desc="Simulating", unit="sweep"):
             self.update_whole_grid_2()
+        for i in tqdm(range(niter), desc="Simulating", unit="sweep"):
+            self.update_whole_grid_3()
+        self.grid = self.grid_ghost
+        for i in tqdm(range(niter), desc="Simulating", unit="sweep"):
+            self.update_whole_grid_4()
+        for i in tqdm(range(niter), desc="Simulating", unit="sweep"):
+            self.update_whole_grid_5()
 
 def main():
-    game = GameOfLife(5, starting_grid="blinker")
-    game.run(50000)
+    game = GameOfLife(50, starting_grid="blinker")
+    game.run(100)
     
 if __name__ == "__main__":
     main()
