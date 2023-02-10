@@ -1,0 +1,21 @@
+#font.sans-serif: Computer Modern
+figure.facecolor: white
+axes.facecolor: white
+axes.edgecolor: black
+axes.labelcolor: black
+text.color: black
+xtick.color: black
+ytick.color: black
+axes.linewidth: 2
+axes.labelsize: large
+axes.titlesize: large
+font.size: 18
+xtick.major.size: 5
+xtick.major.width: 1.5
+ytick.major.size: 5
+ytick.major.width: 1.5
+ytick.minor.width: 0
+xtick.minor.visible: False
+ytick.minor.visible: False
+lines.linewidth: 3
+errorbar.capsize: 5
