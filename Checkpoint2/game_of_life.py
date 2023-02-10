@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -6,8 +7,9 @@ from tqdm import tqdm
 rng = np.random.default_rng()
 
 class GameOfLife:
-    def __init__(self, N, starting_grid="random"):
+    def __init__(self, N=50, starting_grid="random"):
         self.N = N
+
         if starting_grid == "random":
             self.grid = rng.choice([0, 1], size=(self.N, self.N)).astype(np.uint8)
         elif starting_grid == "blinker":
@@ -16,11 +18,11 @@ class GameOfLife:
         elif starting_grid == "glider":
             self.grid = np.zeros((self.N, self.N), np.uint8)
             self.add_glider(self.N//2, self.N//2)
-
+        else:
+            raise ValueError(f"starting_grid passed invalid value: {starting_grid}, "
+                              "choose from 'random', 'blinker' or 'glider'.")
+        # Add ghost cells
         self.grid = np.pad(self.grid, 1, "wrap")
-    
-    def __str__(self):
-        return str(self.grid)
 
     def add_blinker(self, i, j):
         """Adds a blinker to the grid, centred on the point (i, j)."""
@@ -69,6 +71,9 @@ class GameOfLife:
                + self.grid[2:  , 2:  ]  # South-East
                )
 
+    def calculate_number_alive(self):
+        return np.count_nonzero(self.grid[1:-1, 1:-1])
+
     def update_grid(self):
         neighbour_sum = self._calculate_neighbour_sum()
         
@@ -80,23 +85,27 @@ class GameOfLife:
         self._apply_pbc()
 
     def run(self, niter):
-        for i in tqdm(range(niter), desc="Simulating", unit="sweep"):
+        for i in tqdm(range(niter), unit="sweep"):
             self.update_grid()
 
     def _show_update(self, i):
         """Update the simulation and animation."""
         self.update_grid()
-        self.t += 1
+        self.number_alive[i+1] = self.calculate_number_alive()
+
         # Update animation
         self.im.set_data(self.grid[1:-1, 1:-1])
-        self.title.set_text(f"Time: {self.t} sweeps")
+        self.title.set_text(f"Time: {self.time[i+1]} sweeps")
         return self.im, self.title
 
     def run_show(self, niter):
         """Run the simulation with the visualisation."""
-        self.t = 0
+        self.time = np.arange(niter + 1)
+        self.number_alive = np.zeros(niter + 1)
+        self.number_alive[0] = self.calculate_number_alive()
+
         fig, ax = plt.subplots()
-        self.title = ax.set_title(f"Time: {self.t} sweeps")
+        self.title = ax.set_title(f"Time: {0} sweeps")
         self.im = ax.imshow(self.grid[1:-1, 1:-1])
         self.anim = FuncAnimation(fig,
                                   self._show_update,
@@ -105,12 +114,41 @@ class GameOfLife:
                                   interval=30)
         plt.show()
 
+    def equilibration_time(self):
+        ts, ns = [], []
+        time = 0
+        number_alive = self.calculate_number_alive()
+        number_alive_old = 0
+        while number_alive_old != number_alive:
+            ts.append(time); ns.append(number_alive)
+            time += 1
+            self.update_grid()
+            number_alive_old = number_alive
+            number_alive = self.calculate_number_alive()
+        return time
+
 
 def main():
-    game = GameOfLife(50, starting_grid="blinker")
-    game.run(1000)
-    game = GameOfLife(50, starting_grid="random")
-    game.run_show(1000)
-    
+    description = "Run Conway's game of life."
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('-N', type=int, default=50,
+                        help="The size of one side of the grid.")
+    parser.add_argument('-v', '--visualise', action='store_true',
+                        help="Show an animation of the simulation.")
+    parser.add_argument('-s', '--sweeps', help="How many sweeps to perform.",
+                        default=300, type=int)
+    parser.add_argument('-g', '--starting-grid', default="random",
+                        help="Starting configuration.", dest="starting_grid",
+                        choices=["random", "blinker", "glider"])
+    args = parser.parse_args()
+
+    game = GameOfLife(N=args.N, starting_grid=args.starting_grid)
+
+    if args.visualise:
+        game.run_show(args.sweeps)
+    else:
+        game.run(args.sweeps)
+
+
 if __name__ == "__main__":
     main()
