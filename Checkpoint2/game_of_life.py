@@ -10,17 +10,19 @@ class GameOfLife:
     def __init__(self, N=50, starting_grid="random"):
         self.N = N
 
+        self.grid = np.zeros((self.N, self.N), np.uint8)
+
         if starting_grid == "random":
             self.grid = rng.choice([0, 1], size=(self.N, self.N)).astype(np.uint8)
         elif starting_grid == "blinker":
-            self.grid = np.zeros((self.N, self.N), np.uint8)
             self.add_blinker(self.N//2, self.N//2)
         elif starting_grid == "glider":
-            self.grid = np.zeros((self.N, self.N), np.uint8)
             self.add_glider(self.N//2, self.N//2)
+        elif starting_grid == "zeros":
+            pass
         else:
             raise ValueError(f"starting_grid passed invalid value: {starting_grid}, "
-                              "choose from 'random', 'blinker' or 'glider'.")
+                              "choose from 'random', 'blinker', 'glider' or 'zeros'.")
         # Add ghost cells
         self.grid = np.pad(self.grid, 1, "wrap")
 
@@ -127,6 +129,9 @@ class GameOfLife:
             number_alive = self.calculate_number_alive()
         return time
 
+    def calculate_centre_of_mass(self):
+        coords = np.argwhere(self.grid[1:-1]) + 1  # account for the ghost cells
+        return np.sum(coords, axis=0) / coords.shape[0]
 
 def main():
     description = "Run Conway's game of life."
