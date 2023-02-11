@@ -10,10 +10,11 @@ class GameOfLife:
     def __init__(self, N=50, starting_grid="random"):
         self.N = N
 
-        self.grid = np.zeros((self.N, self.N), np.uint8)
+        # N+2 x N+2 gives you a rim of ghost cells to help w/ pbc
+        self.grid = np.zeros((self.N+2, self.N+2), np.uint8)
 
         if starting_grid == "random":
-            self.grid = rng.choice([0, 1], size=(self.N, self.N)).astype(np.uint8)
+            self.grid[1:-1, 1:-1] = rng.choice([0, 1], size=(self.N, self.N))
         elif starting_grid == "blinker":
             self.add_blinker(self.N//2, self.N//2)
         elif starting_grid == "glider":
@@ -23,8 +24,11 @@ class GameOfLife:
         else:
             raise ValueError(f"starting_grid passed invalid value: {starting_grid}, "
                               "choose from 'random', 'blinker', 'glider' or 'zeros'.")
-        # Add ghost cells
-        self.grid = np.pad(self.grid, 1, "wrap")
+        
+        self._apply_pbc()
+
+    def get_grid(self):
+        return self.grid[1:-1, 1:-1]
 
     def add_blinker(self, i, j):
         """Adds a blinker to the grid, centred on the point (i, j)."""
@@ -46,15 +50,22 @@ class GameOfLife:
         # _ X _
         # _ _ X
         # X X X
-        self.grid[(i-1) % self.N, (j-1) % self.N] = 0
-        self.grid[(i-1) % self.N,     j % self.N] = 1
-        self.grid[(i-1) % self.N, (j+1) % self.N] = 0
-        self.grid[    i % self.N, (j-1) % self.N] = 0
-        self.grid[    i % self.N,     j % self.N] = 0
-        self.grid[    i % self.N, (j+1) % self.N] = 1
-        self.grid[(i+1) % self.N, (j-1) % self.N] = 1
-        self.grid[(i+1) % self.N,     j % self.N] = 1
-        self.grid[(i+1) % self.N, (j+1) % self.N] = 1    
+        north = ((i-1) % self.N) + 1  # Need to add 1 to deal w/ ghost cells
+        east  = ((j+1) % self.N) + 1
+        south = ((i+1) % self.N) + 1
+        west  = ((j-1) % self.N) + 1
+        i = (i % self.N) + 1
+        j = (j % self.N) + 1
+        self.grid[north, west] = 0
+        self.grid[north,    j] = 1
+        self.grid[north, east] = 0
+        self.grid[    i, west] = 0
+        self.grid[    i,    j] = 0
+        self.grid[    i, east] = 1
+        self.grid[south, west] = 1
+        self.grid[south,    j] = 1
+        self.grid[south, east] = 1
+        self._apply_pbc()    
 
     def _apply_pbc(self):
         self.grid[0, :] = self.grid[-2, :]
@@ -96,7 +107,7 @@ class GameOfLife:
         self.number_alive[i+1] = self.calculate_number_alive()
 
         # Update animation
-        self.im.set_data(self.grid[1:-1, 1:-1])
+        self.im.set_data(self.get_grid())
         self.title.set_text(f"Time: {self.time[i+1]} sweeps")
         return self.im, self.title
 
@@ -108,7 +119,7 @@ class GameOfLife:
 
         fig, ax = plt.subplots()
         self.title = ax.set_title(f"Time: {0} sweeps")
-        self.im = ax.imshow(self.grid[1:-1, 1:-1])
+        self.im = ax.imshow(self.get_grid())
         self.anim = FuncAnimation(fig,
                                   self._show_update,
                                   frames=niter,
@@ -116,22 +127,67 @@ class GameOfLife:
                                   interval=30)
         plt.show()
 
-    def equilibration_time(self):
+    @staticmethod
+    def equilibration_time(N=50, starting_grid="random"):
+        game = GameOfLife(N=N, starting_grid=starting_grid)
+
         ts, ns = [], []
         time = 0
-        number_alive = self.calculate_number_alive()
+        number_alive = game.calculate_number_alive()
         number_alive_old = 0
         while number_alive_old != number_alive:
             ts.append(time); ns.append(number_alive)
             time += 1
-            self.update_grid()
+            game.update_grid()
             number_alive_old = number_alive
-            number_alive = self.calculate_number_alive()
+            number_alive = game.calculate_number_alive()
         return time
 
+
+class Glider(GameOfLife):
+    def __init__(self, N=50, i=0, j=0):
+        """Create an NxN game of life grid with a glider centred on (i, j)."""
+        GameOfLife.__init__(self, N=N, starting_grid="zeros")
+        self.add_glider(i, j)
+
     def calculate_centre_of_mass(self):
-        coords = np.argwhere(self.grid[1:-1]) + 1  # account for the ghost cells
-        return np.sum(coords, axis=0) / coords.shape[0]
+        coords = np.argwhere(self.get_grid())
+
+        if np.any(coords == 0) or np.any(coords == self.N):
+            # Ignore calculation when we're crossing boundaries
+            return np.nan
+        else:
+            return np.sum(coords, axis=0) / coords.shape[0]
+
+    # Change run to also calculate the centre of mass and keep track of the time
+    def run(self, niter):
+        self.centre_of_mass = np.zeros((niter+1, 2))
+        self.centre_of_mass[0, :] = self.calculate_centre_of_mass()
+
+        for i in tqdm(range(niter), unit="sweep"):
+            self.update_grid()
+            self.centre_of_mass[i+1, :] = self.calculate_centre_of_mass()
+
+    @staticmethod
+    def calculate_average_velocity(total_time):
+        glider = Glider()
+        glider.run(total_time)
+
+        # Ignoring when we're crossing boundaries
+        valid_position = ~np.any(np.isnan(glider.centre_of_mass), axis=1)
+        time = np.arange(total_time + 1)[valid_position]
+        centre_of_mass = glider.centre_of_mass[valid_position, :]
+
+        # Post-process centre of mass: when it decreases, need to add N to it to un-apply pbcs
+        drops = np.diff(centre_of_mass, axis=0, prepend=[[0, 0]]) < 0
+        # Each time we "drop" (i.e. loop back around) we need to add another N
+        unwrap_factor = np.cumsum(drops, axis=0)
+        unwrap = glider.N * unwrap_factor
+        average_velocity = (centre_of_mass + unwrap) / time[:, np.newaxis]
+        average_speed = np.linalg.norm(average_velocity, axis=1)
+
+        return time, average_velocity, average_speed
+            
 
 def main():
     description = "Run Conway's game of life."
