@@ -192,7 +192,7 @@ class Glider(GameOfLife):
         average_velocity = (centre_of_mass + unwrap) / time[:, np.newaxis]
         average_speed = np.linalg.norm(average_velocity, axis=1)
 
-        return time, average_velocity, average_speed
+        return time, centre_of_mass, average_velocity, average_speed
             
 
 def main():

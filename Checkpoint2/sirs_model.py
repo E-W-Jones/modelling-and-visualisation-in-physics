@@ -4,10 +4,11 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from tqdm import tqdm
 
-# def tqdm(iter, **kwargs):
-#     return iter
-
 rng = np.random.default_rng()
+
+def tqdm(iterator, *args, **kwargs):
+    """Write this to turn off the progress bars"""
+    return iterator
 
 class SIRSModel:
     SUSCEPTIBLE = 0  # Susceptible
@@ -23,9 +24,9 @@ class SIRSModel:
         if p1 > 1:
             raise ValueError(f"Probabilities must be < 1: {p1 = }")
         if p2 > 1:
-            raise ValueError(f"Probabilities must be < 1: {p1 = }")
+            raise ValueError(f"Probabilities must be < 1: {p2 = }")
         if p3 > 1: 
-            raise ValueError(f"Probabilities must be < 1: {p1 = }")
+            raise ValueError(f"Probabilities must be < 1: {p3 = }")
 
         self.grid = rng.choice([self.SUSCEPTIBLE, self.INFECTED], (self.N, self.N))
 
@@ -58,18 +59,18 @@ class SIRSModel:
         self.t = -1  # the first calculate observables will change this to 0
         length = self.nsweeps // self.nskip + 1
         # Columns are: time, no. susceptible, no. infected, no. recovered
-        self.observables = np.empty((length, 4))
-
+        self.observables = np.zeros((length, 4))
+        # pre-calculate time
+        self.observables[:, 0] = np.arange(length) * self.nskip
         self.calculate_observables()
 
     def calculate_observables(self):
         """Calculate time (in sweeps), sdfghjhgfds, and store in pre-allocated array."""
         self.t += 1
-        time = self.t * self.nskip
         Nsus = self.count(self.SUSCEPTIBLE)
         Ninf = self.count(self.INFECTED)
         Nrec = self.count(self.RECOVERED)
-        self.observables[self.t, :] = time, Nsus, Ninf, Nrec
+        self.observables[self.t, 1:] = Nsus, Ninf, Nrec
 
     def save_observables(self, filename=None, prefix="."):
         if filename is None:
@@ -83,12 +84,15 @@ class SIRSModel:
                    header="time (sweeps) | Susceptible | Infected | Recovered")
         print(f"Saved to {filename}")
 
+    def check_absorbing(self):
+        return self.observables[self.t, 1] == self.N**2
+
     def equilibrate(self, nequilibrate):
         """Run nequilibrate sweeps, without taking measurements."""
         for i in tqdm(range(nequilibrate), desc="Equilibrating", unit="sweep"):
             self.sweep()
 
-    def run(self, nsweeps, nskip=1, nequilibrate=100, tqdm_desc=None):
+    def run(self, nsweeps, nskip=1, nequilibrate=100, **tqdm_kwargs):
         """After nequilibrate sweeps, run a simulation for nsweeps sweeps, taking measurements every nskip sweeps."""
         self.nsweeps = nsweeps
         self.nskip = nskip
@@ -97,12 +101,16 @@ class SIRSModel:
 
         self.initialise_observables()
 
-        if tqdm_desc is None:
-            tqdm_desc = "   Simulating"
-        for i in tqdm(range(self.nsweeps), desc=tqdm_desc, unit="sweep"):
+        if 'desc' not in tqdm_kwargs:
+            tqdm_kwargs['desc'] = "   Simulating"
+        for i in tqdm(range(self.nsweeps), unit="sweep", **tqdm_kwargs):
             self.sweep()
             if i % nskip == 0:
                 self.calculate_observables()
+            if self.check_absorbing():
+                print("Reached absorbing state. No need to continue simulating.", end=" ")
+                self.observables[self.t:, 1] = self.N**2
+                break
 
     def _show_update(self, i):
         """Update the simulation and animation."""
@@ -143,6 +151,7 @@ class SIRSModel:
 
 def main():
     model = SIRSModel(p1=0.4, p2=0.7, p3=1)  # Absorbing state w/ all susceptible
+    model.run(1000, 1, 0)
     model.run_show(200, 1, 0)
     model = SIRSModel(p1=0.5, p2=0.5, p3=0.5)  # Dynamic Equilibrium State
     model.run_show(200, 1, 0)
