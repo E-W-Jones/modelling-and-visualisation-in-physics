@@ -24,7 +24,7 @@ class GameOfLife:
         else:
             raise ValueError(f"starting_grid passed invalid value: {starting_grid}, "
                               "choose from 'random', 'blinker', 'glider' or 'zeros'.")
-        
+
         self._apply_pbc()
 
     def get_grid(self):
@@ -72,7 +72,7 @@ class GameOfLife:
         self.grid[-1, :] = self.grid[1, :]
         self.grid[:, 0] = self.grid[:, -2]
         self.grid[:, -1] = self.grid[:, 1]
-     
+
     def _calculate_neighbour_sum(self):
         return ( self.grid[ :-2,  :-2]  # North-West 
                + self.grid[ :-2, 1:-1]  # North
@@ -100,6 +100,7 @@ class GameOfLife:
     def run(self, niter):
         for i in tqdm(range(niter), unit="sweep"):
             self.update_grid()
+        #[self.update_grid() for _ in tqdm(range(niter), unit="sweep")]
 
     def _show_update(self, i):
         """Update the simulation and animation."""
@@ -128,20 +129,25 @@ class GameOfLife:
         plt.show()
 
     @staticmethod
-    def equilibration_time(N=50, starting_grid="random"):
+    def equilibration_time(niter=5000, consecutive_values=10, N=50, starting_grid="random"):
         game = GameOfLife(N=N, starting_grid=starting_grid)
-
-        ts, ns = [], []
-        time = 0
-        number_alive = game.calculate_number_alive()
-        number_alive_old = 0
-        while number_alive_old != number_alive:
-            ts.append(time); ns.append(number_alive)
-            time += 1
+        n_alive = np.zeros(niter)
+        for i in range(niter):
             game.update_grid()
-            number_alive_old = number_alive
-            number_alive = game.calculate_number_alive()
-        return time
+            n_alive[i] = game.calculate_number_alive()
+        # this sliding window is an array that looks like:
+        # [[n_alive[0], n_alive[1], ..., n_alive[consecutive_values]],
+        #  [n_alive[1], n_alive[2], ..., n_alive[consecutive_values+1]
+        #  ...]
+        sliding_window = np.lib.stride_tricks.sliding_window_view(n_alive, consecutive_values)
+        # all the values are the same if max - min = 0, as => max = min
+        equilibrated = np.ptp(sliding_window, axis=1) == 0
+        # TODO Change to if else
+        try:
+            return np.where(equilibrated)[0][0]
+        except IndexError:
+            return np.nan
+            
 
 
 class Glider(GameOfLife):

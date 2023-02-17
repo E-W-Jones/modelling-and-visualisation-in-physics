@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from tqdm import tqdm
 
-def tqdm(iter, **kwargs):
-    return iter
+# def tqdm(iter, **kwargs):
+#     return iter
 
 rng = np.random.default_rng()
 
@@ -88,7 +88,7 @@ class SIRSModel:
         for i in tqdm(range(nequilibrate), desc="Equilibrating", unit="sweep"):
             self.sweep()
 
-    def run(self, nsweeps, nskip=1, nequilibrate=100):
+    def run(self, nsweeps, nskip=1, nequilibrate=100, tqdm_desc=None):
         """After nequilibrate sweeps, run a simulation for nsweeps sweeps, taking measurements every nskip sweeps."""
         self.nsweeps = nsweeps
         self.nskip = nskip
@@ -97,7 +97,9 @@ class SIRSModel:
 
         self.initialise_observables()
 
-        for i in tqdm(range(self.nsweeps), desc="   Simulating", unit="sweep"):
+        if tqdm_desc is None:
+            tqdm_desc = "   Simulating"
+        for i in tqdm(range(self.nsweeps), desc=tqdm_desc, unit="sweep"):
             self.sweep()
             if i % nskip == 0:
                 self.calculate_observables()

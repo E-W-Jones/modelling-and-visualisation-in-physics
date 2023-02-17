@@ -64,13 +64,21 @@ p3_stop = config.getint("p3_stop")
 p3_number = config.getint("p3_number")
 
 def sirs_run(p1, p3):
-    print(f"Running {p1 = }, {p3 = }")
+    #print(f"Running {p1 = }, {p3 = }")
     model = SIRSModel(p1, 0.5, p3)
-    model.run(nsweeps, nskip, nequilibrate)
+    model.run(nsweeps, nskip, nequilibrate, tqdm_desc=f"Running {p1=}, {p3=}")
     model.save_observables(prefix=run_name)
 
 p1_arr = np.linspace(p1_start, p1_stop, p1_number)
 p3_arr = np.linspace(p3_start, p3_stop, p3_number)
+# with Pool() as p:
+#     p.starmap(sirs_run, product(p1_arr, p3_arr))
 
-with Pool() as p:
-   p.starmap(sirs_run, product(p1_arr, p3_arr))
+from mpi4py import MPI
+# Find out which MPI rank this process is
+comm = MPI.COMM_WORLD
+mpi_size = comm.Get_size()
+mpi_rank = comm.Get_rank()
+
+for args in product(p1_arr, p3_arr)[mpi_rank::mpi_size]:
+    sirs_run(*args)
