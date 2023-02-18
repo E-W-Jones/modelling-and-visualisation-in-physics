@@ -6,10 +6,6 @@ from tqdm import tqdm
 
 rng = np.random.default_rng()
 
-def tqdm(iterator, *args, **kwargs):
-    """Write this to turn off the progress bars"""
-    return iterator
-
 class SIRSModel:
     SUSCEPTIBLE = 0  # Susceptible
     INFECTED = 1  # Infected
