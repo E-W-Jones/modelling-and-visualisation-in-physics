@@ -71,7 +71,7 @@ for i in [1, 2, 3]:
 def sirs_run(p1, p2, p3):
     print(f"Running {p1 = :.2f}, {p2 = :.2f}, {p3 = :.2f} on {current_process().name:17}: ", end="")
     model = SIRSModel(p1, p2, p3)
-    model.run(nsweeps, nskip, nequilibrate)
+    model.run(nsweeps, nskip, nequilibrate, disable=False)
     model.save_observables(prefix=run_name)
 
 with Pool() as p:
