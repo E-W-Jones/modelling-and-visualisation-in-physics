@@ -21,7 +21,7 @@ class SIRSModel:
             raise ValueError(f"Probabilities must be < 1: {p1 = }")
         if p2 > 1:
             raise ValueError(f"Probabilities must be < 1: {p2 = }")
-        if p3 > 1: 
+        if p3 > 1:
             raise ValueError(f"Probabilities must be < 1: {p3 = }")
 
         self.grid = rng.choice([self.SUSCEPTIBLE, self.INFECTED], (self.N, self.N))
