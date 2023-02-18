@@ -83,9 +83,16 @@ class SIRSModel:
     def check_absorbing(self):
         return self.observables[self.t, 1] == self.N**2
 
-    def equilibrate(self, nequilibrate):
+    def equilibrate(self, nequilibrate, **tqdm_kwargs):
         """Run nequilibrate sweeps, without taking measurements."""
-        for i in tqdm(range(nequilibrate), desc="Equilibrating", unit="sweep"):
+        if 'desc' not in tqdm_kwargs:
+            tqdm_kwargs['desc'] = "Equilibrating"
+        else:
+            tqdm_kwargs['desc'] += "(equilibrating)"
+        if 'unit' not in tqdm_kwargs:
+            tqdm_kwargs['unit'] = "sweep"
+            
+        for i in tqdm(range(nequilibrate), **tqdm_kwargs):
             self.sweep()
 
     def run(self, nsweeps, nskip=1, nequilibrate=100, **tqdm_kwargs):
@@ -93,13 +100,15 @@ class SIRSModel:
         self.nsweeps = nsweeps
         self.nskip = nskip
 
-        self.equilibrate(nequilibrate)
+        self.equilibrate(nequilibrate, **tqdm_kwargs)
 
         self.initialise_observables()
 
         if 'desc' not in tqdm_kwargs:
             tqdm_kwargs['desc'] = "   Simulating"
-        for i in tqdm(range(self.nsweeps), unit="sweep", **tqdm_kwargs):
+        if 'unit' not in tqdm_kwargs:
+            tqdm_kwargs['unit'] = "sweep"
+        for i in tqdm(range(self.nsweeps), **tqdm_kwargs):
             self.sweep()
             if i % nskip == 0:
                 self.calculate_observables()
