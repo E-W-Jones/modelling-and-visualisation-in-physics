@@ -1,9 +1,11 @@
 from sirs_model import SIRSModel
 import matplotlib.pyplot as plt
 
-p_values = {#"absorbing": dict(p1=0.4, p2=0.7, p3=1),
-            #"dynamic_equilibrium": dict(p1=0.5, p2=0.5, p3=0.5),
-            "waves": dict(p1=0.315, p2=0.5, p3=0.5),
+p_values = {"absorbing": dict(p1=0.4, p2=0.7, p3=1),
+            #"absorbing_jack": dict(p1=0.4, p2=0.7, p3=1),
+            "dynamic_equilibrium": dict(p1=0.5, p2=0.5, p3=0.5),
+            #"dynamic_equilibrium_jack": dict(p1=0.65, p2=0.5, p3=0.5),
+            "waves": dict(p1=0.5, p2=0.1, p3=0.01),
             }
 
 for state in p_values:
