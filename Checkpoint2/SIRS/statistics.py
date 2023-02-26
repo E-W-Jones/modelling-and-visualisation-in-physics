@@ -1,7 +1,7 @@
 import numpy as np
 rng = np.random.default_rng()
 import matplotlib.pyplot as plt
-plt.style.use("../style.mplstyle")
+plt.style.use("../../style.mplstyle")
 
 def bootstrap(x, func, n=1000):
     """For an array x and a function func, calculate the boostrap errors on func(x)."""
@@ -154,9 +154,10 @@ class SIRSRunStatistics:
 
     Should only need to call init, and plot.
     """
-    def __init__(self, filename):
+    def __init__(self, filename, verbose=True):
         self._parse_filename(filename)
-        print(f"Reading from file: {self.filename}")
+        if verbose:
+            print(f"Reading from file: {self.filename}")
         self.t, self.Nsus, self.Ninf, self.Nrec = np.loadtxt(self.filename, unpack=True)
 
         self._calculate_statistics()
@@ -175,7 +176,14 @@ class SIRSRunStatistics:
             # assume pathlib.Path
             stem = filename.stem
 
-        N, p1, p2, p3, nsweeps = stem.split("_")
+        split = stem.split("_")
+        if len(split) == 5:
+            N, p1, p2, p3, nsweeps = split
+        elif len(split) == 6:
+            N, p1, p2, p3, nsweeps, f = split
+            self.f = float(f[2:])  # initial f- to get rid of
+        else:
+            raise ValueError(rf"Filename {filename} has incorrect format. ¯\_(ツ)_/¯")
         self.N = int(N[1:])  # strip off initial N
         self.p1 = float(p1[3:])  # strip off initial p1-
         self.p2 = float(p2[3:])
@@ -199,7 +207,23 @@ class SIRSRunStatistics:
         raise NotImplementedError()
 
     def plot(self, show=True, save=False, std_errs=0):
-        raise NotImplementedError()
+        
+        for y, label in zip([self.Nsus, self.Ninf, self.Nrec],
+                            ["susceptible", "infected", "recovered"]):
+            plt.plot(self.t, y, label=label)
+
+        plt.xlabel("Time (sweeps)")
+        plt.ylabel("Number of cells in each state")
+        plt.title(f"p1={self.p1:3f}, p2={self.p2:.3f}, p3={self.p3:.3f}")
+        plt.tight_layout()
+
+        if isinstance(save, str):
+            plt.savefig(save)
+        elif save:
+            plt.savefig(self.filename.rstrip(".txt") + ".png")
+        if show:
+            plt.show()
+        plt.close()
 
     def variance(self, I=None, axis=None):
         if I is None:

@@ -153,7 +153,7 @@ class GameOfLife:
 class Glider(GameOfLife):
     def __init__(self, N=50, i=0, j=0):
         """Create an NxN game of life grid with a glider centred on (i, j)."""
-        GameOfLife.__init__(self, N=N, starting_grid="zeros")
+        super().__init__(self, N=N, starting_grid="zeros")
         self.add_glider(i, j)
 
     def calculate_centre_of_mass(self):
