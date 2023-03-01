@@ -69,3 +69,4 @@ def sirs_run(f):
 
 with Pool() as p:
     p.map(sirs_run, np.linspace(0, 1, args.n))
+

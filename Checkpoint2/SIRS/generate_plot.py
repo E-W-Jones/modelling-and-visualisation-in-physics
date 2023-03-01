@@ -29,13 +29,21 @@ if "p3" in config:
     infected_variance = np.zeros(p1_number)
     error = np.zeros(p1_number)
 
-    for fname in run.glob("*.txt"):
-        SIRS_run = SIRSRunStatistics(fname)
-        p1_mask = (SIRS_run.p1 == p1_arr)
-        infected_variance[p1_mask] = SIRS_run.variance_ψ
-        error[p1_mask] = SIRS_run.variance_ψ_bootstrap_error
+    results = run / "results.txt"
+    if results.is_file():
+        print(f"Reading from {results}")
+        infected_variance = np.loadtxt(results)
+    else:
+        for fname in run.glob("*.txt"):
+            SIRS_run = SIRSRunStatistics(fname)
+            p1_mask = (SIRS_run.p1 == p1_arr)
+            infected_variance[p1_mask] = SIRS_run.variance_ψ
+            error[p1_mask] = SIRS_run.variance_ψ_bootstrap_error
+        np.savetxt(results, infected_variance)
+        print(f"Written to {results}.")
 
-    plt.errorbar(p1_arr, infected_variance, yerr=error, fmt='o-')
+    #plt.errorbar(p1_arr, infected_variance, yerr=error, fmt='o-')
+    plt.plot(p1_arr, infected_variance, 'o-')
     plt.title("Average infected fraction variance $\\psi$,\nat $p_2=p_3=0.5$")
     plt.xlabel("$p_1$")
     plt.ylabel(r"variance $(\langle I^2 \rangle - \langle I \rangle^2) / N$")
@@ -51,11 +59,18 @@ else:
     p3_arr = np.linspace(p3_start, p3_stop, p3_number)
     infected_fraction = np.zeros((p1_number, p3_number))
 
-    for fname in run.glob("*.txt"):
-        SIRS_run = SIRSRunStatistics(fname)
-        p1_mask = (SIRS_run.p1 == p1_arr)
-        p3_mask = (SIRS_run.p3 == p3_arr)
-        infected_fraction[p1_mask, p3_mask] = SIRS_run.average_ψ
+    results = run / "results.txt"
+    if results.is_file():
+        print(f"Reading from {results}")
+        infected_fraction = np.loadtxt(results)
+    else:
+        for fname in run.glob("*.txt"):
+            SIRS_run = SIRSRunStatistics(fname)
+            p1_mask = (SIRS_run.p1 == p1_arr)
+            p3_mask = (SIRS_run.p3 == p3_arr)
+            infected_fraction[p1_mask, p3_mask] = SIRS_run.average_ψ
+        np.savetxt(results, infected_fraction)
+        print(f"Written to {results}.")
 
     plt.pcolormesh(p1_arr, p3_arr, infected_fraction)
     plt.colorbar(label=r"$\psi = \langle I \rangle/N$")

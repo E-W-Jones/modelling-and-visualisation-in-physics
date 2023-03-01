@@ -1,5 +1,5 @@
 # time (sweeps) | Susceptible | Infected | Recovered
-     0   2500      0      0
+     0   2499      0      1
      1   2500      0      0
      2   2500      0      0
      3   2500      0      0

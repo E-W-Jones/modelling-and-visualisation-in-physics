@@ -35,5 +35,6 @@ plt.plot(f, infected)
 plt.xlabel("Fraction of immune cells")
 plt.ylabel("Average fraction of infected cells")
 plt.tight_layout()
+plt.savefig(run.stem)
 plt.show()
 

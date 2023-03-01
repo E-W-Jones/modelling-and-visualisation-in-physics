@@ -33,12 +33,15 @@ class SIRSModel:
             or (self.grid[i, (j-1) % self.N] == self.INFECTED)
 
     def update_cell(self, i, j, p):
+        # Be careful! When checking if susceptible and probability, you can't
+        # say the final one is going to be the only state you havent tested for.
+        # This might seem obvious (it is) but I made that mistake)
         cell = self.grid[i, j]
         if (cell == self.SUSCEPTIBLE) and (p < self.p1) and self.infected_neighbour(i, j):
             self.grid[i, j] = self.INFECTED
         elif (cell == self.INFECTED) and (p < self.p2):
             self.grid[i, j] = self.RECOVERED
-        elif p < self.p3:  # Know it has to be recovered
+        elif (cell == self.RECOVERED) and (p < self.p3):
             self.grid[i, j] = self.SUSCEPTIBLE
 
     def sweep(self):
@@ -184,7 +187,7 @@ class SIRSModelVaccinated(SIRSModel):
             self.grid[i, j] = self.INFECTED
         elif (cell == self.INFECTED) and (p < self.p2):
             self.grid[i, j] = self.RECOVERED
-        elif p < self.p3 and (not self.immune[i, j]):
+        elif (cell == self.RECOVERED) and (p < self.p3) and (not self.immune[i, j]):
             # Know it has to be recovered, if it's immune never recover to susceptible
             self.grid[i, j] = self.SUSCEPTIBLE
 
