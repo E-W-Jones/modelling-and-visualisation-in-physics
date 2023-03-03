@@ -131,6 +131,23 @@ class GameOfLife:
     @staticmethod
     def equilibration_time(niter=5000, consecutive_values=10, N=50, starting_grid="random"):
         game = GameOfLife(N=N, starting_grid=starting_grid)
+        old_n_alive = -99
+        n_consecutive = 0
+        time = 0
+        while (n_consecutive < consecutive_values) and (time < niter):
+            time += 1
+            game.update_grid()
+            n_alive = game.calculate_number_alive()
+            if old_n_alive == n_alive:
+                n_consecutive += 1
+            else:
+                old_n_alive = n_alive
+                n_consecutive = 0
+        return time if time != niter else np.nan
+
+    @staticmethod
+    def equilibration_time_slow(niter=5000, consecutive_values=10, N=50, starting_grid="random"):
+        game = GameOfLife(N=N, starting_grid=starting_grid)
         n_alive = np.zeros(niter)
         for i in range(niter):
             game.update_grid()
@@ -142,18 +159,18 @@ class GameOfLife:
         sliding_window = np.lib.stride_tricks.sliding_window_view(n_alive, consecutive_values)
         # all the values are the same if max - min = 0, as => max = min
         equilibrated = np.ptp(sliding_window, axis=1) == 0
-        # TODO Change to if else
-        try:
-            return np.where(equilibrated)[0][0]
-        except IndexError:
+        equilibrated_times = np.where(equilibrated)[0]
+        if len(equilibrated_times) > 0:
+            return equilibrated_times[0]
+        else:
             return np.nan
-            
 
 
 class Glider(GameOfLife):
     def __init__(self, N=50, i=0, j=0):
         """Create an NxN game of life grid with a glider centred on (i, j)."""
-        super().__init__(self, N=N, starting_grid="zeros")
+        # Would like to use Super but it just doesnt seem to work :(
+        GameOfLife.__init__(self, N=N, starting_grid="zeros")
         self.add_glider(i, j)
 
     def calculate_centre_of_mass(self):
@@ -199,7 +216,7 @@ def main():
     description = "Run Conway's game of life."
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('-N', type=int, default=50,
-                        help="The size of one side of the grid.")
+                        help="The size of one side of the grid. Default 50.")
     parser.add_argument('-v', '--visualise', action='store_true',
                         help="Show an animation of the simulation.")
     parser.add_argument('-s', '--sweeps', help="How many sweeps to perform.",

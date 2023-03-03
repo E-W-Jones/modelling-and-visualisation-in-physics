@@ -72,7 +72,7 @@ else:
         np.savetxt(results, infected_fraction)
         print(f"Written to {results}.")
 
-    plt.pcolormesh(p1_arr, p3_arr, infected_fraction)
+    plt.pcolormesh(p1_arr, p3_arr, infected_fraction.T)
     plt.colorbar(label=r"$\psi = \langle I \rangle/N$")
     plt.title("Average infected fraction $\\psi$, at $p_2=0.5$")
     plt.xlabel("$p_1$")

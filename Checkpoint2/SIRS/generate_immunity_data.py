@@ -1,8 +1,10 @@
+import sys
 import numpy as np
 from sirs_model import SIRSModelVaccinated
 from multiprocessing import Pool, current_process
 import argparse
 from pathlib import Path
+from itertools import product
 
 description = "Run a series of monte carlo simulation of the SIRS Model with an immune fraction."
 parser = argparse.ArgumentParser(description=description)
@@ -35,6 +37,8 @@ if not run.is_dir():
     if args.verbose:
         print(f"No directory called: {run}, creating one.")
     run.mkdir()
+    for i in range(5):
+        (run / str(i)).mkdir()
 elif run.resolve() == Path.cwd():
     # chosen to save things to current directory
     pass
@@ -49,13 +53,15 @@ else:
             print(f"Removing {run}")
         run.rmdir()
         run.mkdir()
+        for i in range(5):
+            (run / str(i)).mkdir()
         if args.verbose:
             print(f"Created {run}")
     else:
         print("Can't do anything then, sorry. Pick a different run name.")
         sys.exit()
 
-def sirs_run(f):
+def sirs_run(f, run_number):
     if args.verbose:
         print(f"Running {f = :.2f} on {current_process().name:17}: ", end="")
     model = SIRSModelVaccinated(p1=args.p1,
@@ -65,8 +71,8 @@ def sirs_run(f):
                                 N=args.N
                                 )
     model.run(args.sweeps, args.skip, args.equilibrate, disable=True)
-    model.save_observables(prefix=args.run_name)
+    model.save_observables(prefix=f"{args.run_name}/{run_number}")
 
 with Pool() as p:
-    p.map(sirs_run, np.linspace(0, 1, args.n))
+    p.starmap(sirs_run, product(np.linspace(0, 1, args.n), range(5)))
 
