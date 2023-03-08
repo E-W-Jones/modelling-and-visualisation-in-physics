@@ -8,6 +8,18 @@ rng = np.random.default_rng()
 
 class GameOfLife:
     def __init__(self, N=50, starting_grid="random"):
+        """
+        Parameters
+        ------
+        N : int
+            The number of cells along one square grid edge. Default is 50.
+        starting_grid : {"random" (default), "blinker", "glider", "zeros"}, string
+            Which starting configuration to use.
+            random: starts with each cell either on or off with equal probability.
+            blinker: starts with a grid of zeros with a blinker in the center.
+            glider: starts with a grid of zeros with a glider in the center.
+            zeros: starts with a grid of zeros.
+        """
         self.N = N
 
         # N+2 x N+2 gives you a rim of ghost cells to help w/ pbc
@@ -28,6 +40,7 @@ class GameOfLife:
         self._apply_pbc()
 
     def get_grid(self):
+        """Return the grid, sans ghost cells."""
         return self.grid[1:-1, 1:-1]
 
     def add_blinker(self, i, j):
@@ -68,12 +81,14 @@ class GameOfLife:
         self._apply_pbc()    
 
     def _apply_pbc(self):
+        """Apply periodic boundary conditions to the grid."""
         self.grid[0, :] = self.grid[-2, :]
         self.grid[-1, :] = self.grid[1, :]
         self.grid[:, 0] = self.grid[:, -2]
         self.grid[:, -1] = self.grid[:, 1]
 
     def _calculate_neighbour_sum(self):
+        """Return the number of neighbours around each cell."""
         return ( self.grid[ :-2,  :-2]  # North-West 
                + self.grid[ :-2, 1:-1]  # North
                + self.grid[ :-2, 2:  ]  # North-East
@@ -85,9 +100,23 @@ class GameOfLife:
                )
 
     def calculate_number_alive(self):
+        """Return the number of cells currently alive."""
         return np.count_nonzero(self.grid[1:-1, 1:-1])
 
     def update_grid(self):
+        """
+        Update game of life according to the rules below.
+
+        Rules:
+            If a cell is alive and has two or three neighbours, it survives
+            If a cell is dead and has three neighbours, it becomes alive
+            All other live cells die, and all other dead cells remain dead.
+        This can be written somewhat succinctly:
+            A cell is alive on the next step if and only if:
+                it has three neighbours
+                OR
+                it is currently alive and has two neighbours 
+        """
         neighbour_sum = self._calculate_neighbour_sum()
         
         alive_mask = (neighbour_sum == 3) | ((self.grid[1:-1, 1:-1] == 1) & (neighbour_sum == 2))
@@ -98,6 +127,7 @@ class GameOfLife:
         self._apply_pbc()
 
     def run(self, niter):
+        """Run the game of life for niter sweeps."""
         for i in tqdm(range(niter), unit="sweep"):
             self.update_grid()
         #[self.update_grid() for _ in tqdm(range(niter), unit="sweep")]
@@ -113,7 +143,7 @@ class GameOfLife:
         return self.im, self.title
 
     def run_show(self, niter):
-        """Run the simulation with the visualisation."""
+        """Run the simulation for niter sweeps, with the visualisation."""
         self.time = np.arange(niter + 1)
         self.number_alive = np.zeros(niter + 1)
         self.number_alive[0] = self.calculate_number_alive()
@@ -130,6 +160,27 @@ class GameOfLife:
 
     @staticmethod
     def equilibration_time(niter=5000, consecutive_values=10, N=50, starting_grid="random"):
+        """
+        Calculate the equibilibration time for the game of life.
+
+        The equilibration time is the time it takes for the number of active
+        cells to be constant.
+
+        Parameters
+        ----------
+        niter : int
+            The number of sweeps done before giving up and returning NaN.
+            Default is 5000.
+        consecutive_values : int
+            The number of sweeps that have to have the same 
+            number of alive cells to be considered equilibrated.
+            Default is 10.
+        N : int
+            Length of one side of the square grid the game is played on.
+            Default is 50.
+        starting_grid : {"random" (default), "blinker", "glider", "zeros"}, string
+            Which starting configuration to use.
+        """
         game = GameOfLife(N=N, starting_grid=starting_grid)
         old_n_alive = -99
         n_consecutive = 0
@@ -147,6 +198,7 @@ class GameOfLife:
 
     @staticmethod
     def equilibration_time_slow(niter=5000, consecutive_values=10, N=50, starting_grid="random"):
+        """Please use equilibration_time() instead."""
         game = GameOfLife(N=N, starting_grid=starting_grid)
         n_alive = np.zeros(niter)
         for i in range(niter):
@@ -174,6 +226,7 @@ class Glider(GameOfLife):
         self.add_glider(i, j)
 
     def calculate_centre_of_mass(self):
+        """Calculate and return the center of mass of points on the grid."""
         coords = np.argwhere(self.get_grid())
 
         if np.any(coords == 0) or np.any(coords == self.N):
@@ -184,6 +237,7 @@ class Glider(GameOfLife):
 
     # Change run to also calculate the centre of mass and keep track of the time
     def run(self, niter):
+        """Run the glider for niter sweeps."""
         self.centre_of_mass = np.zeros((niter+1, 2))
         self.centre_of_mass[0, :] = self.calculate_centre_of_mass()
 
@@ -193,6 +247,22 @@ class Glider(GameOfLife):
 
     @staticmethod
     def calculate_average_velocity(total_time):
+        """
+        Runs a glider starting from (0, 0) for total_time sweeps.
+
+        Parameters
+        ----------
+        total_time : int
+                     The number of sweeps to run the game for.
+
+        Returns
+        -------
+        time : 1d array
+               array of times, corresponding to the center of mass and velocity
+               arrays.
+        centre_of_mass : 1d array
+               array of centre of mass, as it evolves through time.
+        """
         glider = Glider()
         glider.run(total_time)
 
@@ -201,15 +271,17 @@ class Glider(GameOfLife):
         time = np.arange(total_time + 1)[valid_position]
         centre_of_mass = glider.centre_of_mass[valid_position, :]
 
-        # Post-process centre of mass: when it decreases, need to add N to it to un-apply pbcs
-        drops = np.diff(centre_of_mass, axis=0, prepend=[[0, 0]]) < 0
-        # Each time we "drop" (i.e. loop back around) we need to add another N
-        unwrap_factor = np.cumsum(drops, axis=0)
-        unwrap = glider.N * unwrap_factor
-        average_velocity = (centre_of_mass + unwrap) / time[:, np.newaxis]
-        average_speed = np.linalg.norm(average_velocity, axis=1)
+        # A method for calculating the average velocity at each point.
+        # Instead use line fitting.
+        # # Post-process centre of mass: when it decreases, need to add N to it to un-apply pbcs
+        # drops = np.diff(centre_of_mass, axis=0, prepend=[[0, 0]]) < 0
+        # # Each time we "drop" (i.e. loop back around) we need to add another N
+        # unwrap_factor = np.cumsum(drops, axis=0)
+        # unwrap = glider.N * unwrap_factor
+        # average_velocity = (centre_of_mass + unwrap) / time[:, np.newaxis]
+        # average_speed = np.linalg.norm(average_velocity, axis=1)
 
-        return time, centre_of_mass, average_velocity, average_speed
+        return time, centre_of_mass  #, average_velocity, average_speed
             
 
 def main():

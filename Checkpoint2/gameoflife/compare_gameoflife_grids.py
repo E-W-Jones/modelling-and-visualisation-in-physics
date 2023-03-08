@@ -1,3 +1,8 @@
+"""
+Comparing different methods of calculating the number of neighbours for the game of life grid.
+
+Compares a convolution method and using ghost cells and a view. 
+"""
 import numpy as np
 rng = np.random.default_rng()
 from tqdm import tqdm
