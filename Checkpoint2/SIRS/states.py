@@ -1,3 +1,6 @@
+"""
+Show and maybe save plots of different (p1, p2, p3)
+"""
 from sirs_model import SIRSModel
 import matplotlib.pyplot as plt
 

@@ -12,6 +12,22 @@ class SIRSModel:
     RECOVERED = 2  # Recovered
 
     def __init__(self, p1=1, p2=1, p3=1, N=50):
+        """
+        SIRS model.
+
+        Parameters
+        ----------
+        p1 : float
+            The probability of a susceptible cell being infected by one of its
+            neighbours. Default is 1.
+        p2 : float
+            The probability of an infected cell recovering. Default is 1.
+        p3 : float
+            The probability of a recovered, but not immune, cell becoming
+            susceptible.
+        N : int
+            The number of cells along one square grid edge. Default is 50.
+        """
         self.N = N
         self.iter_per_sweep = self.N * self.N
         self.p1 = p1
@@ -27,12 +43,14 @@ class SIRSModel:
         self.grid = rng.choice([self.SUSCEPTIBLE, self.INFECTED, self.RECOVERED], (self.N, self.N))
 
     def infected_neighbour(self, i, j):
+        """Return if cell (i, j) has at least one infected neighbour."""
         return (self.grid[(i+1) % self.N, j] == self.INFECTED) \
             or (self.grid[(i-1) % self.N, j] == self.INFECTED) \
             or (self.grid[i, (j+1) % self.N] == self.INFECTED) \
             or (self.grid[i, (j-1) % self.N] == self.INFECTED)
 
     def update_cell(self, i, j, p):
+        """Update cell (i, j) using precomputed probability p."""
         # Be careful! When checking if susceptible and probability, you can't
         # say the final one is going to be the only state you havent tested for.
         # This might seem obvious (it is) but I made that mistake)
@@ -45,16 +63,18 @@ class SIRSModel:
             self.grid[i, j] = self.SUSCEPTIBLE
 
     def sweep(self):
+        """Perform one sweep."""
         idx, jdx = rng.integers(self.N, size=(2, self.iter_per_sweep))
         probs = rng.random(size=self.iter_per_sweep)
         for i, j, p in zip(idx, jdx, probs):
             self.update_cell(i, j, p)
 
     def count(self, cell_type):
+        """Return the number of cells in the grid that are of the type cell_type."""
         return np.count_nonzero(self.grid == cell_type)
 
     def initialise_observables(self):
-        """Create an array for storing the time (in sweeps) magnetization, and total energy of the grid."""
+        """Create an array for storing the time (in sweeps) susceptible, infected, and recovered fractions of the grid."""
         self.t = -1  # the first calculate observables will change this to 0
         length = self.nsweeps // self.nskip + 1
         # Columns are: time, no. susceptible, no. infected, no. recovered
@@ -64,7 +84,7 @@ class SIRSModel:
         self.calculate_observables()
 
     def calculate_observables(self):
-        """Calculate time (in sweeps), sdfghjhgfds, and store in pre-allocated array."""
+        """Calculate time (in sweeps), susceptible, infected, and recovered fractions, and store in pre-allocated array."""
         self.t += 1
         Nsus = self.count(self.SUSCEPTIBLE)
         Ninf = self.count(self.INFECTED)
@@ -72,6 +92,19 @@ class SIRSModel:
         self.observables[self.t, 1:] = Nsus, Ninf, Nrec
 
     def save_observables(self, filename=None, prefix="."):
+        """
+        Save the observables.
+        
+        Parameters
+        ----------
+        filename : string or None
+                 A filename to save to. None (default) means it generates one
+                 with the format:
+                    prefix/N<N>_p1-<p1>_p2-<p2>_p3-<p3>_<nsweeps>_f-<f>.txt
+        prefix : string
+                 A folder to prefix the filename with.
+                 Default is '.', the current directory.
+        """
         if filename is None:
              filename = f"N{self.N}_p1-{self.p1}_p2-{self.p2}_p3-{self.p3}_{self.nsweeps}.txt"
 
@@ -84,6 +117,7 @@ class SIRSModel:
         print(f"Saved to {filename}")
 
     def check_absorbing(self):
+        """Return if the grid has reached an absorbing state."""
         return self.observables[self.t, 1] == self.N**2
 
     def equilibrate(self, nequilibrate, **tqdm_kwargs):
@@ -133,7 +167,11 @@ class SIRSModel:
         return self.im, self.title
 
     def run_show(self, nsweeps, nskip, nequilibrate, save=False):
-        """Run the simulation with the visualisation, over nsweeps, updating the visualisation every nskip sweeps."""
+        """
+        Run the simulation with the visualisation, over nsweeps, updating the
+        visualisation every nskip sweeps, with nequilibrate equilibration
+        sweeps.
+        """
         self.nsweeps = nsweeps
         self.nskip = nskip
 
@@ -166,6 +204,25 @@ class SIRSModel:
 
 class SIRSModelVaccinated(SIRSModel):
     def __init__(self, p1=1, p2=1, p3=1, N=50, f=0):
+        """
+        SIRS model with some fraction being immune (permenantly recovered).
+
+        Parameters
+        ----------
+        p1 : float
+            The probability of a susceptible cell being infected by one of its
+            neighbours. Default is 1.
+        p2 : float
+            The probability of an infected cell recovering. Default is 1.
+        p3 : float
+            The probability of a recovered, but not immune, cell becoming
+            susceptible.
+        N : int
+            The number of cells along one square grid edge. Default is 50.
+        f : float
+            The fraction of cells that are immune (always recovered).
+            Default is 0.
+        """
         super().__init__(p1=p1, p2=p2, p3=p3, N=N)
         self.f = f
         # Create the immune mask by generating random indices to set to true
@@ -179,19 +236,36 @@ class SIRSModelVaccinated(SIRSModel):
         self.grid[self.immune] = self.RECOVERED
 
     def check_absorbing(self):
+        """Return if the grid has reached an absorbing state."""
+        # Checks if the number of susceptible, infected, and recovered no longer
+        # changes.
         return np.all(self.observables[self.t, 1:] == self.observables[self.t - 1, 1:])
 
     def update_cell(self, i, j, p):
+        """Update the cell (i, j) with precomputed probability p."""
         cell = self.grid[i, j]
         if (cell == self.SUSCEPTIBLE) and (p < self.p1) and self.infected_neighbour(i, j):
             self.grid[i, j] = self.INFECTED
         elif (cell == self.INFECTED) and (p < self.p2):
             self.grid[i, j] = self.RECOVERED
         elif (cell == self.RECOVERED) and (p < self.p3) and (not self.immune[i, j]):
-            # Know it has to be recovered, if it's immune never recover to susceptible
+            # If it's immune never recover to susceptible
             self.grid[i, j] = self.SUSCEPTIBLE
 
     def save_observables(self, filename=None, prefix="."):
+        """
+        Save the observables.
+        
+        Parameters
+        ----------
+        filename : string or None
+                 A filename to save to. None (default) means it generates one
+                 with the format:
+                    prefix/N<N>_p1-<p1>_p2-<p2>_p3-<p3>_<nsweeps>_f-<f>.txt
+        prefix : string
+                 A folder to prefix the filename with.
+                 Default is '.', the current directory.
+        """
         if filename is None:
              filename = f"N{self.N}_p1-{self.p1}_p2-{self.p2}_p3-{self.p3}_{self.nsweeps}_f-{self.f}.txt"
 
