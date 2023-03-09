@@ -39,11 +39,11 @@ if "p3" in config:
             p1_mask = (SIRS_run.p1 == p1_arr)
             infected_variance[p1_mask] = SIRS_run.variance_ψ
             error[p1_mask] = SIRS_run.variance_ψ_bootstrap_error
-        np.savetxt(results, infected_variance)
+        np.savetxt(results, np.c_[infected_variance, error])
         print(f"Written to {results}.")
 
-    #plt.errorbar(p1_arr, infected_variance, yerr=error, fmt='o-')
-    plt.plot(p1_arr, infected_variance, 'o-')
+    plt.errorbar(p1_arr, infected_variance, yerr=error, fmt='o-')
+    #plt.plot(p1_arr, infected_variance, 'o-')
     plt.title("Average infected fraction variance $\\psi$,\nat $p_2=p_3=0.5$")
     plt.xlabel("$p_1$")
     plt.ylabel(r"variance $(\langle I^2 \rangle - \langle I \rangle^2) / N$")

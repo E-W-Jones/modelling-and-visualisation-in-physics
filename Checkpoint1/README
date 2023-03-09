@@ -1,0 +1,21 @@
+At the most basic, you can run (with animation) a 50x50 grid at a temperature T by running:
+`python isingmodel.py -g -v 50 T`
+use `-g` for glauber dynamics and `-k` for kawasaki dynamics.
+For more fine-tuning, run `python isingmodel.py --help`.
+
+Included is all the code required to run over all temperatures, but the results
+are included in the `results` folder.
+
+It's small on dependancies, requiring only:
+    * numpy
+    * matplotlib
+    * tqdm
+to run the main isingmodel code, and additionally:
+    * pandas
+to do the data analysis.
+
+There are two ways the code is designed to be run:
+    * Just running one model for a given temperature (shown above)
+    * Collecting data over a range of temperatures
+    (run `python generate_data.py CONFIG` to generate a run from a config file
+    CONFIG.config, and `python analyse_data.py config.config` to analyse it.)
