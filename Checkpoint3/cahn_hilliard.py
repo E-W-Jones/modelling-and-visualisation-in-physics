@@ -1,101 +1,59 @@
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from tqdm import tqdm
-
 rng = np.random.default_rng()
 
-def laplacian_ghost_cells(grid, dx):
-    """
-    Calculate the laplacian for a grid that includes ghost cells.
-    
-    Does NOT apply periodic boundary conditions.
-    """
-    return (     grid[ :-2, 1:-1]  # North
-           +     grid[1:-1,  :-2]  # West
-           +     grid[1:-1, 2:  ]  # East
-           +     grid[2:  , 1:-1]  # South
-           - 4 * grid[1:-1, 1:-1]
-           ) / dx*dx
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
-class CahnHilliardSolver():
-    def __init__(self, phi0, noise_scale, dx, dt,
-                 N=100, a=0.1, M=0.1, k=0.1):
-        self.phi0 = phi0
-        self.dt = dt
-        self.dx = dx
+from tqdm import tqdm
+
+
+class CahnHilliardSolver:
+    def __init__(self, phi0=0, N=100, a=0.1, k=0.1, M=0.1, dx=1, dt=1, noise_scale=0.5):
         self.N = N
         self.a = a
-        self.M = M
         self.k = k
-        
-        self.dxdx = self.dx * self.dx
-        self.Mdt_dxdx = self.M * self.dt / self.dxdx
-        
-        # Grid with a region of ghost cells to use
-        self.grid = np.full((N+2, N+2), phi0) \
-                  + 2 * noise_scale * (rng.random((N+2, N+2)) - 0.5)
-        
-        self._apply_pbc_grid()
-        
-        self.chemical_potential = np.empty_like(self.grid)
+        self.M = M
+        self.dx = dx
+        self.dt = dt
+        self.phi = phi0 + 2 * noise_scale * (rng.random((self.N, self.N)) - 0.5)
+        self.phi0 = phi0
 
-    def get_grid(self):
-        """Return the grid, sans ghost cells."""
-        return self.grid[1:-1, 1:-1]
-
-    def _apply_pbc_grid(self):
-        """Apply periodic boundary conditions to the grid."""
-        self.grid[0, :] = self.grid[-2, :]
-        self.grid[-1, :] = self.grid[1, :]
-        self.grid[:, 0] = self.grid[:, -2]
-        self.grid[:, -1] = self.grid[:, 1]
-
-    def _apply_pbc_chemical_potential(self):
-        """Apply periodic boundary conditions to the chemical potential."""
-        self.chemical_potential[0, :] = self.chemical_potential[-2, :]
-        self.chemical_potential[-1, :] = self.chemical_potential[1, :]
-        self.chemical_potential[:, 0] = self.chemical_potential[:, -2]
-        self.chemical_potential[:, -1] = self.chemical_potential[:, 1]
-        
     def laplacian(self, grid):
-        """
-        Calculate the laplacian for a grid that includes ghost cells.
+        return ( np.roll(grid,  1, axis=0)
+               + np.roll(grid, -1, axis=0)
+               + np.roll(grid,  1, axis=1)
+               + np.roll(grid, -1, axis=1) 
+               - 4*grid ) / (self.dx * self.dx)
 
-        Does NOT apply periodic boundary conditions.
-        """
-        return (     grid[ :-2, 1:-1]  # North
-               +     grid[1:-1,  :-2]  # West
-               +     grid[1:-1, 2:  ]  # East
-               +     grid[2:  , 1:-1]  # South
-               - 4 * grid[1:-1, 1:-1]
-               ) / self.dxdx
-        
     def calculate_chemical_potential(self):
-        self.chemical_potential[1:-1, 1:-1] = -self.a*self.chemical_potential[1:-1, 1:-1] + self.a*self.chemical_potential[1:-1, 1:-1]**3 - self.k*self.laplacian(self.chemical_potential)        
-        self._apply_pbc_chemical_potential()
+        self.mu = (-self.a * self.phi) + (self.a * self.phi**3) - (self.k * self.laplacian(self.phi))
 
-    def update_grid(self):
+    def update(self):
         self.calculate_chemical_potential()
-        self.grid[1:-1, 1:-1] += self.Mdt_dxdx * self.laplacian(self.grid)
-        self._apply_pbc_grid()
+        self.phi += self.M * self.dt * self.laplacian(self.mu)
+
+    def calculate_free_energy_density(self):
+        gradx, grady = np.gradient(self.phi, edge_order=True)
+        return ( -self.a * self.phi**2
+                + self.a/2 * self.phi**4 
+                + self.k * (gradx**2 + grady**2)
+               ) / 2
 
     def initialise_observables(self):
-        """Create an array for storing the time (in sweeps) susceptible, infected, and recovered fractions of the grid."""
+        """Create an array for storing the time (in sweeps) and total free energy density of the grid."""
         self.t = -1  # the first calculate observables will change this to 0
         length = self.nsweeps // self.nskip + 1
-        # Columns are: time, free energy density
+        # Columns are: time, no. susceptible, no. infected, no. recovered
         self.observables = np.zeros((length, 2))
         # pre-calculate time
         self.observables[:, 0] = np.arange(length) * self.nskip
         self.calculate_observables()
 
     def calculate_observables(self):
-        """Calculate time (in sweeps), susceptible, infected, and recovered fractions, and store in pre-allocated array."""
+        """Calculate time (in sweeps) and total free energy density, and store in pre-allocated array."""
         self.t += 1
-        f = -self.a/2 * self.grid[1:-1, 1:-1]**2 + self.a/4 * self.grid[1:-1, 1:-1]**4 + self.k/2 * self.laplacian(self.grid)**2
-        self.observables[self.t, 1] = f.sum()
+        self.observables[self.t, 1:] = np.sum(self.calculate_free_energy_density())
 
     def save_observables(self, filename=None, prefix="."):
         """
@@ -106,107 +64,109 @@ class CahnHilliardSolver():
         filename : string or None
                  A filename to save to. None (default) means it generates one
                  with the format:
-                    prefix/N<N>_phi0<phi0>_<nsweeps>.txt
+                    prefix/phi0<phi0>_<nsweeps>.txt
         prefix : string
                  A folder to prefix the filename with.
                  Default is '.', the current directory.
         """
         if filename is None:
-             filename = f"N{self.N}_{self.phi0}_{self.nsweeps}.txt"
+             filename = f"phi0{self.phi0}_{self.nsweeps}.txt"
 
         filename = f"{prefix}/{filename}"
 
         np.savetxt(filename,
                    self.observables,
-                   header="time (sweeps) | free energy density")
+                   fmt="%6d",
+                   header="time (sweeps) | total free energy density")
         print(f"Saved to {filename}")
 
     def run(self, nsweeps, nskip=1, **tqdm_kwargs):
-        """Run for nsweeps sweeps."""
-        self.nskip = nskip
+        """After nequilibrate sweeps, run a simulation for nsweeps sweeps, taking measurements every nskip sweeps."""
         self.nsweeps = nsweeps
-        
+        self.nskip = nskip
+
         self.initialise_observables()
-        if 'unit' not in tqdm_kwargs:
-            tqdm_kwargs['unit'] = "sweep"
-        for i in tqdm(range(nsweeps), **tqdm_kwargs):
-            self.update_grid()
+
+        for i in tqdm(range(self.nsweeps), **tqdm_kwargs):
+            self.update()
             if i % nskip == 0:
                 self.calculate_observables()
-        #[self.update_grid() for _ in tqdm(range(niter), unit="sweep")]
 
     def _show_update(self, i):
         """Update the simulation and animation."""
         for _ in range(self.nskip):
-            self.update_grid()
+            self.update()
         self.calculate_observables()
         # Update animation
-        self.im.set_data(self.get_grid())
-        #lim = max([np.min(self.get_grid()), np.max(self.get_grid())])
-        #self.im.set_clim(-lim, lim)
-        self.im.set_clim(np.min(self.get_grid()), np.max(self.get_grid()))
-        self.title.set_text(f"Time: {self.t*self.nskip} sweeps")
+        self.im.set_data(self.phi)
+        self.title.set_text(f"Time: {self.t*self.nskip} sweeps; phi0: {self.phi0}")
         return self.im, self.title
 
-    def run_show(self, nsweeps, nskip):
-        """Run the simulation for niter sweeps, with the visualisation."""
+    def run_show(self, nsweeps, nskip=1, save=False):
+        """
+        Run the simulation with the visualisation, over nsweeps, updating the
+        visualisation every nskip sweeps, with nequilibrate equilibration
+        sweeps.
+        """
         self.nsweeps = nsweeps
         self.nskip = nskip
 
         self.initialise_observables()
 
         fig, ax = plt.subplots()
-        self.title = ax.set_title(f"Time: {0} sweeps")
-        self.im = ax.imshow(self.get_grid())
+        self.title = ax.set_title(f"Time: {self.t*self.nskip} sweeps; phi0: {self.phi0}")
+        self.im = ax.imshow(self.phi, cmap="PiYG", vmin=-1, vmax=1)
         self.anim = FuncAnimation(fig,
                                   self._show_update,
                                   frames=self.nsweeps//self.nskip - 1,
                                   repeat=False,
                                   interval=30)
         plt.colorbar(self.im)
-        plt.show()
+
+        if isinstance(save, str):
+            self.anim.save(save)
+        elif save:
+            self.anim.save(f"phi0{self.phi0}_{self.nsweeps}.gif")
+        else:
+            plt.show()
+
+def main():
+    description = "Run Conway's game of life."
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('phi0', type=float)
+    parser.add_argument('-dx', type=float, default=1,
+                        help="The size of dx. Default 1.")
+    parser.add_argument('-dt', type=float, default=2,
+                        help="The size of dt. Default 2. Max recommended 2.5.")
+    parser.add_argument('-N', type=int, default=100,
+                        help="The size of one side of the grid. Default 100.")
+    parser.add_argument('-v', '--visualise', action='store_true',
+                        help="Show an animation of the simulation.")
+    parser.add_argument('-x', '--save-visualisation', action='store_true',
+                        help="Save the animation of the simulation. Requires -v flag.")
+    parser.add_argument('-s', '--sweeps', help="How many sweeps to perform.",
+                        default=1000, type=int)
+    parser.add_argument('-p', '--skip', default=10, type=int,
+                        help="How many sweeps to skip between measurements.")
+    args = parser.parse_args()
+
+    sim = CahnHilliardSolver(phi0=args.phi0,
+                             N=args.N,
+                             a=0.1,
+                             k=0.1,
+                             M=0.1,
+                             dx=args.dx,
+                             dt=args.dt,
+                             noise_scale=0.5)
+
+    if args.visualise:
+        sim.run_show(args.sweeps, args.skip, save=args.save_visualisation)
+    else:
+        sim.run(args.sweeps, nskip=args.skip)
         
-    
+    sim.save_observables()
+
 if __name__ == "__main__":
-    thing = CahnHilliardSolver(0, 0.01, dx=1, dt=0.01, a=1, k=0.5, M=1)
-    thing.run_show(100000, 1)
-    thing.save_observables()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    main()
+    
 
