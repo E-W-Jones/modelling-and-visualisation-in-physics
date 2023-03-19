@@ -1,3 +1,7 @@
+# a class for each field could be good?
+# This could then have its own lagrangian method?
+# Could also just be too much
+
 import argparse
 import numpy as np
 rng = np.random.default_rng()
@@ -23,7 +27,7 @@ class CahnHilliardSolver:
         return ( np.roll(grid,  1, axis=0)
                + np.roll(grid, -1, axis=0)
                + np.roll(grid,  1, axis=1)
-               + np.roll(grid, -1, axis=1) 
+               + np.roll(grid, -1, axis=1)
                - 4*grid ) / (self.dx * self.dx)
 
     def calculate_chemical_potential(self):
@@ -36,7 +40,7 @@ class CahnHilliardSolver:
     def calculate_free_energy_density(self):
         gradx, grady = np.gradient(self.phi, edge_order=True)
         return ( -self.a * self.phi**2
-                + self.a/2 * self.phi**4 
+                + self.a/2 * self.phi**4
                 + self.k * (gradx**2 + grady**2)
                ) / 2
 
@@ -47,7 +51,7 @@ class CahnHilliardSolver:
         # Columns are: time, no. susceptible, no. infected, no. recovered
         self.observables = np.zeros((length, 2))
         # pre-calculate time
-        self.observables[:, 0] = np.arange(length) * self.nskip
+        self.observables[:, 0] = np.arange(length) * self.nskip * self.dt
         self.calculate_observables()
 
     def calculate_observables(self):
@@ -58,7 +62,7 @@ class CahnHilliardSolver:
     def save_observables(self, filename=None, prefix="."):
         """
         Save the observables.
-        
+
         Parameters
         ----------
         filename : string or None
@@ -100,6 +104,7 @@ class CahnHilliardSolver:
         # Update animation
         self.im.set_data(self.phi)
         self.title.set_text(f"Time: {self.t*self.nskip} sweeps; phi0: {self.phi0}")
+        self.progress_bar.update()
         return self.im, self.title
 
     def run_show(self, nsweeps, nskip=1, save=False):
@@ -110,15 +115,19 @@ class CahnHilliardSolver:
         """
         self.nsweeps = nsweeps
         self.nskip = nskip
+        nframes = self.nsweeps//self.nskip - 1
 
         self.initialise_observables()
 
+        self.progress_bar = tqdm(total=nframes, unit="frames")
+        #self.progress_bar = tqdm(total=nsweeps)
+
         fig, ax = plt.subplots()
-        self.title = ax.set_title(f"Time: {self.t*self.nskip} sweeps; phi0: {self.phi0}")
+        self.title = ax.set_title(f"Time: {self.t*self.nskip*self.dt}; phi0: {self.phi0}")
         self.im = ax.imshow(self.phi, cmap="PiYG", vmin=-1, vmax=1)
         self.anim = FuncAnimation(fig,
                                   self._show_update,
-                                  frames=self.nsweeps//self.nskip - 1,
+                                  frames=nframes,
                                   repeat=False,
                                   interval=30)
         plt.colorbar(self.im)
@@ -129,6 +138,8 @@ class CahnHilliardSolver:
             self.anim.save(f"phi0{self.phi0}_{self.nsweeps}.gif")
         else:
             plt.show()
+
+        self.progress_bar.close()
 
 def main():
     description = "Run Conway's game of life."
@@ -163,10 +174,8 @@ def main():
         sim.run_show(args.sweeps, args.skip, save=args.save_visualisation)
     else:
         sim.run(args.sweeps, nskip=args.skip)
-        
+
     sim.save_observables()
 
 if __name__ == "__main__":
     main()
-    
-
