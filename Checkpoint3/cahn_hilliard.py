@@ -12,7 +12,7 @@ from matplotlib.animation import FuncAnimation
 from tqdm import tqdm
 
 
-class CahnHilliardSolver:
+class CahnHilliardSolverRoll:
     def __init__(self, phi0=0, N=100, a=0.1, k=0.1, M=0.1, dx=1, dt=1, noise_scale=0.5):
         self.N = N
         self.a = a
@@ -38,7 +38,7 @@ class CahnHilliardSolver:
         self.phi += self.M * self.dt * self.laplacian(self.mu)
 
     def calculate_free_energy_density(self):
-        gradx, grady = np.gradient(self.phi, edge_order=True)
+        gradx, grady = gradx, grady = np.gradient(self.phi, self.dx, edge_order=2)
         return ( -self.a * self.phi**2
                 + self.a/2 * self.phi**4
                 + self.k * (gradx**2 + grady**2)
@@ -80,7 +80,7 @@ class CahnHilliardSolver:
 
         np.savetxt(filename,
                    self.observables,
-                   fmt="%6d",
+                   fmt=["%7d", "%f"],
                    header="time (sweeps) | total free energy density")
         print(f"Saved to {filename}")
 
@@ -140,6 +140,147 @@ class CahnHilliardSolver:
             plt.show()
 
         self.progress_bar.close()
+
+class CahnHilliardSolverGhost:
+    def __init__(self, phi0=0, N=100, a=0.1, k=0.1, M=0.1, dx=1, dt=1, noise_scale=0.5):
+        self.N = N
+        self.a = a
+        self.k = k
+        self.M = M
+        self.dx = dx
+        self.dt = dt
+        self.phi = phi0 + 2 * noise_scale * (rng.random((self.N, self.N)) - 0.5)
+        self.phi = np.pad(self.phi, 1, mode='wrap')
+        self.mu = 0 * self.phi  # initialise array similar to phi
+        self.phi0 = phi0
+
+    def laplacian(self, grid):
+        return ( grid[2:  , 1:-1]
+               + grid[ :-2, 1:-1]
+               + grid[1:-1, 2:  ]
+               + grid[1:-1,  :-2]
+               - 4*grid[1:-1, 1:-1] ) / (self.dx * self.dx)
+
+    def apply_pbc(self, grid):
+        grid[0] = grid[-2]
+        grid[-1] = grid[1]
+        grid[:, 0] = grid[:, -2]
+        grid[:, -1] = grid[:, 1]
+
+    def calculate_chemical_potential(self):
+        self.mu[1:-1, 1:-1] = (-self.a * self.phi[1:-1, 1:-1]) + (self.a * self.phi[1:-1, 1:-1]**3) - (self.k * self.laplacian(self.phi))
+        self.apply_pbc(self.mu)
+
+    def update(self):
+        self.calculate_chemical_potential()
+        self.phi[1:-1, 1:-1] += self.M * self.dt * self.laplacian(self.mu)
+        self.apply_pbc(self.phi)
+
+    def calculate_free_energy_density(self):
+        gradx, grady = np.gradient(self.phi[1:-1, 1:-1], self.dx, edge_order=2)
+        return ( -self.a * self.phi[1:-1, 1:-1]**2
+                + self.a/2 * self.phi[1:-1, 1:-1]**4
+                + self.k * (gradx**2 + grady**2)
+               ) / 2
+
+    def initialise_observables(self):
+        """Create an array for storing the time (in sweeps) and total free energy density of the grid."""
+        self.t = -1  # the first calculate observables will change this to 0
+        length = self.nsweeps // self.nskip + 1
+        # Columns are: time, no. susceptible, no. infected, no. recovered
+        self.observables = np.zeros((length, 2))
+        # pre-calculate time
+        self.observables[:, 0] = np.arange(length) * self.nskip * self.dt
+        self.calculate_observables()
+
+    def calculate_observables(self):
+        """Calculate time (in sweeps) and total free energy density, and store in pre-allocated array."""
+        self.t += 1
+        self.observables[self.t, 1:] = np.sum(self.calculate_free_energy_density())
+
+    def save_observables(self, filename=None, prefix="."):
+        """
+        Save the observables.
+
+        Parameters
+        ----------
+        filename : string or None
+                 A filename to save to. None (default) means it generates one
+                 with the format:
+                    prefix/phi0<phi0>_<nsweeps>.txt
+        prefix : string
+                 A folder to prefix the filename with.
+                 Default is '.', the current directory.
+        """
+        if filename is None:
+             filename = f"phi0{self.phi0}_{self.nsweeps}.txt"
+
+        filename = f"{prefix}/{filename}"
+
+        np.savetxt(filename,
+                   self.observables,
+                   fmt=["%7d", "%f"],
+                   header="time (sweeps) | total free energy density")
+        print(f"Saved to {filename}")
+
+    def run(self, nsweeps, nskip=1, **tqdm_kwargs):
+        """After nequilibrate sweeps, run a simulation for nsweeps sweeps, taking measurements every nskip sweeps."""
+        self.nsweeps = nsweeps
+        self.nskip = nskip
+
+        self.initialise_observables()
+
+        for i in tqdm(range(self.nsweeps), **tqdm_kwargs):
+            self.update()
+            if i % nskip == 0:
+                self.calculate_observables()
+
+    def _show_update(self, i):
+        """Update the simulation and animation."""
+        for _ in range(self.nskip):
+            self.update()
+        self.calculate_observables()
+        # Update animation
+        self.im.set_data(self.phi[1:-1, 1:-1])
+        self.title.set_text(f"Time: {self.t*self.nskip} sweeps; phi0: {self.phi0}")
+        self.progress_bar.update()
+        return self.im, self.title
+
+    def run_show(self, nsweeps, nskip=1, save=False):
+        """
+        Run the simulation with the visualisation, over nsweeps, updating the
+        visualisation every nskip sweeps, with nequilibrate equilibration
+        sweeps.
+        """
+        self.nsweeps = nsweeps
+        self.nskip = nskip
+        nframes = self.nsweeps//self.nskip - 1
+
+        self.initialise_observables()
+
+        self.progress_bar = tqdm(total=nframes, unit="frames")
+        #self.progress_bar = tqdm(total=nsweeps)
+
+        fig, ax = plt.subplots()
+        self.title = ax.set_title(f"Time: {self.t*self.nskip*self.dt}; phi0: {self.phi0}")
+        self.im = ax.imshow(self.phi[1:-1, 1:-1], cmap="PiYG", vmin=-1, vmax=1)
+        self.anim = FuncAnimation(fig,
+                                  self._show_update,
+                                  frames=nframes,
+                                  repeat=False,
+                                  interval=30)
+        plt.colorbar(self.im)
+
+        if isinstance(save, str):
+            self.anim.save(save)
+        elif save:
+            self.anim.save(f"phi0{self.phi0}_{self.nsweeps}.gif")
+        else:
+            plt.show()
+
+        self.progress_bar.close()
+
+CahnHilliardSolver = CahnHilliardSolverGhost
 
 def main():
     description = "Run Conway's game of life."
