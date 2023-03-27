@@ -80,7 +80,7 @@ class CahnHilliardSolver:
 
         np.savetxt(filename,
                    self.observables,
-                   fmt="%6d",
+                   fmt=["%7d", "%f"],
                    header="time (sweeps) | total free energy density")
         print(f"Saved to {filename}")
 
