@@ -41,8 +41,10 @@ class PoissonSolver:
         return filename
 
     def solve(self):
+        self.iterations = 0
         self.iterate()
         while not self.check_converged():
+            self.iterations += 1
             self.phi_old[...] = self.phi_new[...]
             self.iterate()
 
@@ -74,7 +76,7 @@ class PoissonSolverJacobiNumpy(PoissonSolver):
                                          + self.rho[1:-1, 1:-1, 1:-1] 
                                          ) / 6
 
-class PoissonSolverGaussSteidel:
+class PoissonSolverGaussSteidel(PoissonSolver):
     def iterate(self):
         for i, j, k in product(range(1, self.N-1), repeat=3):
             self.phi_new[i, j, k] = ( self.phi_new[i-1, j, k]
@@ -86,6 +88,22 @@ class PoissonSolverGaussSteidel:
                                     + self.rho[i, j, k] 
                                     ) / 6
 
+class PoissonSolverGaussSteidelOverrelaxation(PoissonSolver):
+    def __init__(self, omega=1, **kwargs):
+        super().__init__(**kwargs)
+        self.omega = omega
+
+    def iterate(self):
+        for i, j, k in product(range(1, self.N-1), repeat=3):
+            self.phi_new[i, j, k] = (1 - self.omega) * self.phi_new[i, j, k] \
+                                  + self.omega * ( self.phi_new[i-1, j, k]
+                                                 + self.phi_new[i+1, j, k]
+                                                 + self.phi_new[i, j-1, k]
+                                                 + self.phi_new[i, j+1, k]
+                                                 + self.phi_new[i, j, k-1]
+                                                 + self.phi_new[i, j, k+1]
+                                                 + self.rho[i, j, k]
+                                                 ) / 6
 
 class PoissonSolverJacobiBField:
     def __init__(self, N, tolerance):
@@ -141,9 +159,18 @@ class PoissonSolverJacobiBField:
         self.Bz =  self.Bx * 0  # 0s in the right shape
         
 def main():
-    point_charge = PoissonSolverJacobiNumpy()
-    point_charge.solve()
-    VisualisePotential.from_solver(point_charge)
+    for name, solver in zip(['jacobi', 'gauss steidel'],
+                            [PoissonSolverJacobiNumpy, PoissonSolverGaussSteidel]):
+        point_charge = solver()
+        point_charge.solve()
+        print(f"{name}: {point_charge.iterations}")
+
+    for omega in np.r_[1:2:5j]:
+        point_charge = PoissonSolverGaussSteidelOverrelaxation(omega=omega)
+        point_charge.solve()
+        print(f"overrelaxation {omega=}: {point_charge.iterations}")        
+    
+
 
 
 if __name__ == "__main__":

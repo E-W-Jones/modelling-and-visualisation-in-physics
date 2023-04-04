@@ -100,7 +100,7 @@ class VisualisePotential:
         logr = np.log(r[1:])  # skip the first one as log0 = -inf
 
         # Az doesnt have nice power law to expose
-        #Az = self.phi[self.N//2:, self.N//2, self.N//2][1:]
+        Az = self.phi[self.N//2:, self.N//2, self.N//2][1:]
         
         # take up to logr = 2 - this can and probaby should be tweaked
         n = np.count_nonzero(logr <= 2)
@@ -113,7 +113,7 @@ class VisualisePotential:
         logB = np.log(B[1:])
         mB, cB = self.fit_line(logr[:n], logB[:n])
 
-        #plt.plot(logr, Az, label=r"potential, $A_\mathrm{z}$", c="C0")
+        plt.plot(logr, Az, label=r"potential, $A_\mathrm{z}$", c="C0")
         #plt.plot(logr, mphi*logr + cphi, label=f"Line with $m={mphi:.2f}$, $c={cphi:.2f}$", c="C0", ls="--")
         plt.plot(logr, logB, label=r"B-field, $|\mathbf{B}|$", c="C1")
         plt.plot(logr, mB*logr + cB, label=f"Line with $m={mB:.2f}$, $c={cB:.2f}$ (expect $m=-1$)", c="C1", ls="--")
