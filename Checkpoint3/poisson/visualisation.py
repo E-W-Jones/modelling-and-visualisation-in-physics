@@ -21,9 +21,10 @@ class VisualisePotential:
         self.check_3d()
         self.phi[self.phi == 0] = np.nan
 
-        self.magnetic = magnetic        
-        
+        self.magnetic = magnetic
+
         self.plot_fields()
+        self.plot_fields(normalised=True)
 
         if self.magnetic is False:
             self.plot_electric_analysis()
@@ -47,80 +48,91 @@ class VisualisePotential:
         if len(self.Ez.shape) == 2:
             self.Ez = self.extrude(self.Ez)
 
-    def plot_fields(self):
-        self.fig = plt.figure()
+    def plot_fields(self, normalised=False):
+        self.fig = plt.figure(figsize=(10, 3))
         grid = ImageGrid(self.fig, 111, (1, 3), cbar_mode="single", axes_pad=0.7, label_mode='all')
         self.axes = grid.axes_all
         self.cbar_ax = grid.cbar_axes[0]
         for ax, (x, y) in zip(self.axes, ['yz', 'xz', 'xy']):
             ax.set(xlabel=x, ylabel=y)
-        
+
         self.plot_phi()
         if self.magnetic:
-            self.plot_B()
+            self.plot_B(normalised=normalised)
+            plt.savefig(f"magnetic_field{'_normalised' if normalised else ''}", dpi=300)
         else:
-            self.plot_E()
-
+            self.plot_E(normalised=normalised)
+            plt.savefig(f"electric_field{'_normalised' if normalised else ''}", dpi=300)
         plt.show()
 
     def plot_electric_analysis(self):
-        x = self.x[self.N//2:, self.N//2, self.N//2]
-        y = self.y[self.N//2:, self.N//2, self.N//2]
-        z = self.z[self.N//2:, self.N//2, self.N//2]
-        r = np.sqrt(x*x + y*y + z*z)
-        logr = np.log(r[1:])  # skip the first one as log0 = -inf
+        x = self.x#[self.N//2:, self.N//2, self.N//2]
+        y = self.y#[self.N//2:, self.N//2, self.N//2]
+        z = self.z#[self.N//2:, self.N//2, self.N//2]
+        r = np.sqrt(x*x + y*y + z*z).flatten()
+        logr = np.log(r)
 
-        phi = self.phi[self.N//2:, self.N//2, self.N//2]
-        logphi = np.log(phi[1:])
+        phi = self.phi.flatten()#[self.N//2:, self.N//2, self.N//2]
+        logphi = np.log(phi)
         # take up to logr = 2 - this can and probaby should be tweaked
-        n = np.count_nonzero(logr <= 2)
-        mphi, cphi = self.fit_line(logr[:n], logphi[:n])
+        mask = (logr <= 1.5) & np.isfinite(logphi) & np.isfinite(logr)
 
-        Ex = self.Ex[self.N//2:, self.N//2, self.N//2]
-        Ey = self.Ey[self.N//2:, self.N//2, self.N//2]
-        Ez = self.Ez[self.N//2:, self.N//2, self.N//2]
-        E = np.sqrt(Ex*Ex + Ey*Ey + Ez*Ez)
-        logE = np.log(E[1:])
-        mE, cE = self.fit_line(logr[:n], logE[:n])
+        mphi, cphi = self.fit_line(logr[mask], logphi[mask])
 
-        plt.plot(logr, logphi, label=r"potential, $\phi$", c="C0")
+        Ex = self.Ex#[self.N//2:, self.N//2, self.N//2]
+        Ey = self.Ey#[self.N//2:, self.N//2, self.N//2]
+        Ez = self.Ez#[self.N//2:, self.N//2, self.N//2]
+        E = np.sqrt(Ex*Ex + Ey*Ey + Ez*Ez).flatten()
+        logE = np.log(E)
+        mask = (logr <= 1.5) & np.isfinite(logE) & np.isfinite(logr)
+        mE, cE = self.fit_line(logr[mask], logE[mask])
+
+        plt.scatter(logr, logphi, label=r"potential, $\phi$", c="C0", marker='.')
         plt.plot(logr, mphi*logr + cphi, label=f"Line with $m={mphi:.2f}$, $c={cphi:.2f}$ (expect $m=-1$)", c="C0", ls="--")
-        plt.plot(logr, logE, label=r"E-field, $|\mathbf{E}|$", c="C1")
+        plt.scatter(logr, logE, label=r"E-field, $|\mathbf{E}|$", c="C1", marker='.')
         plt.plot(logr, mE*logr + cE, label=f"Line with $m={mE:.2f}$, $c={cE:.2f}$ (expect $m=-2$)", c="C1", ls="--")
         plt.xlabel(r"$\log(r)$")
         plt.ylabel(r"$\log(\phi)$ or $\log(|\mathbf{E}|)$")
         plt.legend()
+        plt.savefig("electric_analysis", dpi=300)
         plt.show()
 
     def plot_magnetic_analysis(self):
-        x = self.x[self.N//2:, self.N//2, self.N//2]
-        y = self.y[self.N//2:, self.N//2, self.N//2]
-        z = self.z[self.N//2:, self.N//2, self.N//2]
-        r = np.sqrt(x*x + y*y)
-        logr = np.log(r[1:])  # skip the first one as log0 = -inf
+        x = self.x
+        y = self.y
+        z = self.z
+        r = np.sqrt(x*x + y*y).flatten()
+        logr = np.log(r)  # skip the first one as log0 = -inf
 
         # Az doesnt have nice power law to expose
-        Az = self.phi[self.N//2:, self.N//2, self.N//2][1:]
-        
+        Az = self.phi.flatten()
+
         # take up to logr = 2 - this can and probaby should be tweaked
-        n = np.count_nonzero(logr <= 2)
-        #mAz, cAz = self.fit_line(logr[:n], Az[:n])
+        logr <= 1.5
+        mask = (logr <= 1.5) & np.isfinite(Az) & np.isfinite(logr)
+        mAz, cAz = self.fit_line(logr[mask], Az[mask])
 
-        Bx = self.Ex[self.N//2:, self.N//2, self.N//2]
-        By = self.Ey[self.N//2:, self.N//2, self.N//2]
-        Bz = self.Ez[self.N//2:, self.N//2, self.N//2]
-        B = np.sqrt(Bx*Bx + By*By + Bz*Bz)
-        logB = np.log(B[1:])
-        mB, cB = self.fit_line(logr[:n], logB[:n])
+        Bx = self.Ex
+        By = self.Ey
+        Bz = self.Ez
+        B = np.sqrt(Bx*Bx + By*By + Bz*Bz).flatten()
+        logB = np.log(B)
+        mask = (logr <= 1.5) & np.isfinite(logB) & np.isfinite(logr)
+        mB, cB = self.fit_line(logr[mask], logB[mask])
 
-        plt.plot(logr, Az, label=r"potential, $A_\mathrm{z}$", c="C0")
-        #plt.plot(logr, mphi*logr + cphi, label=f"Line with $m={mphi:.2f}$, $c={cphi:.2f}$", c="C0", ls="--")
-        plt.plot(logr, logB, label=r"B-field, $|\mathbf{B}|$", c="C1")
-        plt.plot(logr, mB*logr + cB, label=f"Line with $m={mB:.2f}$, $c={cB:.2f}$ (expect $m=-1$)", c="C1", ls="--")
-        plt.xlabel(r"$\log(r)$")
-        plt.ylabel(r"$\log(A_\mathrm{z})$ or $\log(|\mathbf{B}|)$")
-        plt.ylabel(r"$\log(|\mathbf{B}|)$")
-        plt.legend()
+        fig, ax = plt.subplots()
+        ax_twin = plt.twinx(ax)
+
+        ax.scatter(logr, Az, label=r"potential, $A_\mathrm{z}$", c="C0", marker='.')
+        ax.plot(logr, mAz*logr + cAz, label=f"Line with $m={mAz:.2f}$, $c={cAz:.2f}$", c="C0", ls="--")
+        ax_twin.scatter(logr, logB, label=r"B-field, $|\mathbf{B}|$", c="C1", marker='.')
+        ax_twin.plot(logr, mB*logr + cB, label=f"Line with $m={mB:.2f}$, $c={cB:.2f}$ (expect $m=-1$)", c="C1", ls="--")
+        ax.set_xlabel(r"$\log(r)$")
+        ax.set_ylabel(r"$A_\mathrm{z}$")
+        ax_twin.set_ylabel(r"$\log(|\mathbf{B}|)$")
+        #plt.ylabel(r"$\log(|\mathbf{B}|)$")
+        fig.legend(loc="upper right", bbox_to_anchor=(1,1), bbox_transform=ax.transAxes)
+        plt.savefig("magnetic_analysis", dpi=300)
         plt.show()
 
 
@@ -139,26 +151,39 @@ class VisualisePotential:
         self.axes[2].imshow(self.phi[:, :, self.N//2], **kwargs)
 
         plt.colorbar(im, cax=self.cbar_ax)
-    
-    def plot_E(self):
-        kwargs = {"angles": "xy"}
+
+    def plot_E(self, normalised=False):
+        if normalised:
+            kwargs = {"angles": "xy", "scale": 50}
+            E = np.sqrt(self.Ex*self.Ex + self.Ey*self.Ey + self.Ez*self.Ez)
+        else:
+            kwargs = {"angles": "xy"}
+            E = 1
+        Ex, Ey, Ez = self.Ex/E, self.Ey/E, self.Ez/E
 
         self.axes[0].quiver(self.y[self.N//2, :, :], self.z[self.N//2, :, :],
-                            self.Ey[self.N//2, :, :], self.Ez[self.N//2, :, :],
+                            Ey[self.N//2, :, :], Ez[self.N//2, :, :],
                             **kwargs)
         self.axes[1].quiver(self.x[:, self.N//2, :], self.z[:, self.N//2, :],
-                            self.Ex[:, self.N//2, :], self.Ez[:, self.N//2, :],
+                            Ex[:, self.N//2, :], Ez[:, self.N//2, :],
                             **kwargs)
         self.axes[2].quiver(self.x[:, :, self.N//2], self.y[:, :, self.N//2],
-                            self.Ex[:, :, self.N//2], self.Ey[:, :, self.N//2],
+                            Ex[:, :, self.N//2], Ey[:, :, self.N//2],
                             **kwargs)
 
-    def plot_B(self):
-        kwargs = {"angles": "xy"}
+    def plot_B(self, normalised=False):
+        if normalised:
+            kwargs = {"angles": "xy", "scale": 50}
+            E = np.sqrt(self.Ex*self.Ex + self.Ey*self.Ey + self.Ez*self.Ez)
+        else:
+            kwargs = {"angles": "xy"}
+            E = 1
+        
+        Ex, Ey, Ez = self.Ex/E, self.Ey/E, self.Ez/E
 
         self.axes[2].quiver(self.x[:, :, self.N//2], self.y[:, :, self.N//2],
-                            self.Ex[:, :, self.N//2], self.Ey[:, :, self.N//2],
-                            **kwargs)        
+                            Ex[:, :, self.N//2], Ey[:, :, self.N//2],
+                            **kwargs)
 
     @staticmethod
     def from_point_charge(N):
@@ -198,7 +223,10 @@ class VisualisePotential:
 
     @staticmethod
     def from_solver(solver, magnetic=False):
-        return VisualisePotential(solver.phi, solver.Ex, solver.Ey, solver.Ez, magnetic=magnetic)
+        if magnetic:
+            return VisualisePotential(solver.A, solver.Bx, solver.By, solver.Bz, magnetic=magnetic)
+        else:
+            return VisualisePotential(solver.phi, solver.Ex, solver.Ey, solver.Ez, magnetic=magnetic)
 
 
 def main():
