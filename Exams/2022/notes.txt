@@ -1,0 +1,24 @@
+(b)
+Need dt < 0.02 for convergence
+Fractions oscillate before we reach absorbing states, but these can still change. Needs ~100 equilibration sweeps too.
+
+(c)
+Times are: [67.66, 75.24, 153.42000000000002, 37.7, 54.34, 95.10000000000001, 127.68, 161.44, 118.8, 85.10000000000001]
+Mean: 97.648
+Std dev: 39.45117509023021
+Std err: 12.475556965522623
+
+(d)
+Behaviour is more swirly? Hard to describe. Dont enter absorbing states. Dynamic equilibrium it looks like?
+
+(e)
+Subclassed Fields to RecordPoints class to make this easier.
+The two periods are 32.510666666666665 and 33.09
+
+(f)
+Going to subclass again? Or not?
+Basically we want to take a bunch of t values and say for each row for each distance distance between points how often are they the same type?
+Im doing distance up to 50 to check we get pbcs
+probability calculated a bit funnily, basically just counting how many are different over time and space, then normalising at the end
+Not really sure what to say the differences are? Looks like it depends on nskip too.
+From the exam feedback: "The most common issue here is that resulting plots were not sufficiently averaged (over different time steps for instance) to make the resulting trends (correlation lengthscale increasing with D) visible"
