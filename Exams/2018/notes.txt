@@ -1,0 +1,24 @@
+a)
+Take checkpoint 3 code and adapt that for this. Write a FisherSolver class in field.py
+Find need dt<0.2 for stability.
+
+b)
+Just find that it diffuses out, saturating the whole simulation space.
+Save gif to a_snapshot.gif
+
+c)
+Subclassing FisherSolver to FisherSolver1D in a file called Fisher1D.py to impose boundaries and save integral to output
+Decreased dt to get a really nice accurate result while still running quickly.
+The speed is 1.9710777401985686.
+
+d)
+Subclass FisherSolver in almost exactly the same way as FisherSolver1D in Fisher1D.py.
+This time include the expotential initial conditions.
+Looks like exponential fall with k.
+
+e)
+writing cahn_hilliard solver in cahn_hilliard.py
+Previously I've been using a for alpha, now we're using a for a and alpha for alpha
+scale of noise doesnt seem to matter much
+have a snapshot under e_snapshot.gif
+have the phi at steady state saved under e_phi_output.txt
