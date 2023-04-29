@@ -29,7 +29,7 @@ class CahnHilliardSolver:
                - 4*grid ) / (self.dx * self.dx)
 
     def calculate_chemical_potential(self):
-        self.mu = self.a * self.phi * (1 - self.phi) * (self.phi - 2) - (self.k * self.laplacian(self.phi))
+        self.mu = self.a * self.phi * (self.phi - 1) * (self.phi - 2) - (self.k * self.laplacian(self.phi))
 
     def update(self):
         self.calculate_chemical_potential()
