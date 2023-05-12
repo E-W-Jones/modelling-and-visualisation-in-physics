@@ -164,12 +164,19 @@ class IsingModel():
         for Xi, Xj, Yi, Yj, p in zip(Xis, Xjs, Yis, Yjs, probs):
             self.kawasaki_spin_flip(Xi, Xj, Yi, Yj, p)
 
-    def equilibrate(self, nequilibrate):
+    def equilibrate(self, nequilibrate, **tqdm_kwargs):
         """Run nequilibrate sweeps, without taking measurements."""
-        for i in tqdm(range(nequilibrate), desc="Equilibrating", unit="sweep"):
+        if 'desc' not in tqdm_kwargs:
+            tqdm_kwargs['desc'] = "Equilibrating"
+        else:
+            tqdm_kwargs['desc'] += "(equilibrating)"
+        if 'unit' not in tqdm_kwargs:
+            tqdm_kwargs['unit'] = "sweep"
+
+        for i in tqdm(range(nequilibrate), **tqdm_kwargs):
             self.sweep()
 
-    def run(self, nsweeps, nskip, nequilibrate):
+    def run(self, nsweeps, nskip, nequilibrate, **tqdm_kwargs):
         """After nequilibrate sweeps, run a simulation for nsweeps sweeps, taking measurements every nskip sweeps."""
         self.nsweeps = nsweeps
         self.nskip = nskip
@@ -178,7 +185,12 @@ class IsingModel():
 
         self.initialise_observables()
 
-        for i in tqdm(range(self.nsweeps), desc="   Simulating", unit="sweep"):
+        if 'desc' not in tqdm_kwargs:
+            tqdm_kwargs['desc'] = "   Simulating"
+        if 'unit' not in tqdm_kwargs:
+            tqdm_kwargs['unit'] = "sweep"
+
+        for i in tqdm(range(self.nsweeps), **tqdm_kwargs):
             self.sweep()  # set to glauber_sweep/kawasaki_sweep in __init__
             if i % self.nskip == 0:
                 self.calculate_observables()
@@ -192,9 +204,10 @@ class IsingModel():
         self.im.set_data(self.grid)
         self.title.set_text(f"Time: {self.t*self.nskip} sweeps; " \
                           + f"N = {self.N}; T = {self.T}")
+        self.progress_bar.update()
         return self.im, self.title
 
-    def run_show(self, nsweeps, nskip, nequilibrate):
+    def run_show(self, nsweeps, nskip, nequilibrate, save=False):
         """Run the simulation with the visualisation, over nsweeps, updating the visualisation every nskip sweeps."""
         self.nsweeps = nsweeps
         self.nskip = nskip
@@ -202,6 +215,8 @@ class IsingModel():
         self.equilibrate(nequilibrate)
 
         self.initialise_observables()
+
+        self.progress_bar = tqdm(total=nframes, unit="frames")
 
         fig, ax = plt.subplots()
         self.title = ax.set_title(f"Time: {0} sweeps; N = {self.N}; T = {self.T}")
@@ -211,7 +226,13 @@ class IsingModel():
                                   frames=self.nsweeps//self.nskip - 1,
                                   repeat=False,
                                   interval=30)
-        plt.show()
+        if isinstance(save, str):
+            self.anim.save(save)
+        elif save:
+            self.anim.save(f"{self.dynamics}_N{self.N}_T{self.T}_{self.nsweeps}.gif")
+        else:
+            plt.show()
+        self.progress_bar.close()
 
 def main():
     description = "Run a monte carlo simulation of the Ising Model."
