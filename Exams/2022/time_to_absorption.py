@@ -30,6 +30,9 @@ def calculate_time_to_absorption(i, nsweeps=50000):
 #with Pool() as p:
 #    absorption_times = p.map(calculate_time_to_absorption, range(10))
 # Looks like pool failed me :'( 
+# Discovered why pool failed me almost a year later:
+# On linux the default way to start processes is to fork them, which means that each simulation is seeded the same
+# Can fix by using multiprocessing.set_start_method("spawn") or maybe just by setting the seed?
 absorption_times = list(map(calculate_time_to_absorption, range(10)))
 
 print(f"Times are: {absorption_times}")
